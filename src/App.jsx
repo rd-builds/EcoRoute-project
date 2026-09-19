@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import AIWorkspace from './pages/AIWorkspace';
 import { Routes, Route } from 'react-router-dom';
 import Loader from './components/Loader';
 import DotPointer from './components/DotPointer';
@@ -44,7 +45,7 @@ function App() {
           <Route path="/how-it-works" element={<HowItWorks />} />
           <Route path="/extension" element={<Extension />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/workspace" element={<HomeView />} />
+          <Route path="/workspace" element={<AIWorkspace />} />
           <Route path="/signin" element={<SignIn />} />
           <Route path="/login" element={<SignIn />} />
           <Route path="*" element={<HomeView />} />
