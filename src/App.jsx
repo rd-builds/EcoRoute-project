@@ -11,6 +11,7 @@ import HowItWorks from './pages/HowItWorks';
 import Extension from './pages/Extension';
 import Dashboard from './pages/Dashboard';
 import SignIn from './pages/SignIn';
+import ThinkBeforeAI from './pages/ThinkBeforeAI';
 import { AuthProvider } from './context/AuthContext';
 
 function HomeView() {
@@ -42,6 +43,7 @@ function App() {
       <main className="main-content">
         <Routes>
           <Route path="/" element={<HomeView />} />
+          <Route path="/think-before-ai" element={<ThinkBeforeAI />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
           <Route path="/extension" element={<Extension />} />
           <Route path="/dashboard" element={<Dashboard />} />

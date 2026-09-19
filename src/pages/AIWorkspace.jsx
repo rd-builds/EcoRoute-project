@@ -14,24 +14,29 @@ export default function AIWorkspace() {
 
   const samplePrompts = [
     {
-      title: "React Debugging",
-      text: "Debug this React authentication error and explain the fix clearly.",
-      task: "coding"
-    },
-    {
-      title: "Repetitive Captions",
-      text: "Give me 20 different Instagram captions for my coffee shop.",
-      task: "writing"
-    },
-    {
-      title: "10,000-Word Output",
-      text: "Write a 10,000-word explanation of HTML.",
-      task: "education"
-    },
-    {
       title: "Simple Math",
-      text: "What is 15 * 8?",
+      text: "What is 25 * 48?",
       task: "other"
+    },
+    {
+      title: "Unit Conversion",
+      text: "Convert 5 km to meters.",
+      task: "other"
+    },
+    {
+      title: "Task Organization",
+      text: "Give me 5 ways to organize my daily tasks.",
+      task: "other"
+    },
+    {
+      title: "Complaint Analysis",
+      text: "Analyze these 50 customer complaints and identify recurring themes.",
+      task: "research"
+    },
+    {
+      title: "Professional Rewrite",
+      text: "Rewrite this email to sound professional and concise.",
+      task: "writing"
     }
   ];
 
@@ -231,58 +236,203 @@ export default function AIWorkspace() {
         </div>
       )}
 
-      {/* After Analysis: 6 Output Display Sections */}
+      {/* After Analysis: Output Display Sections */}
       {analysisResult && !isAnalyzing && (
         <div className="analysis-grid">
           
-          {/* 1. Green Score */}
-          <div className="workspace-card score-card">
-            <div className="card-header">
-              <span className="card-tag">01 / EFFICIENCY INDEX</span>
-              <h3>Green Score</h3>
-            </div>
-            
-            <div className="score-body">
-              <div className="score-visual">
-                <svg className="score-ring" viewBox="0 0 120 120">
-                  <circle
-                    className="ring-bg"
-                    cx="60"
-                    cy="60"
-                    r="52"
-                    strokeWidth="8"
-                  />
-                  <circle
-                    className="ring-val"
-                    cx="60"
-                    cy="60"
-                    r="52"
-                    strokeWidth="8"
-                    style={{
-                      strokeDasharray: 326.7,
-                      strokeDashoffset: 326.7 - (326.7 * (analysisResult.greenScore || 0)) / 100,
-                    }}
-                  />
-                </svg>
-                <div className="score-display">
-                  <span className="score-num">{analysisResult.greenScore}</span>
-                  <span className="score-denom">/ 100</span>
+          {/* 1. AI Necessity Decision */}
+          {analysisResult.aiNecessity && (
+            <div className={`workspace-card ai-necessity-card full-width necessity-${((typeof analysisResult.aiNecessity === 'object' ? analysisResult.aiNecessity.status : analysisResult.aiNecessity) || '').toLowerCase()}`}>
+              <div className="card-header space-between">
+                <div>
+                  <span className="card-tag">01 / AI NECESSITY DECISION</span>
+                  <h3 className="necessity-heading">
+                    {(typeof analysisResult.aiNecessity === 'object' ? analysisResult.aiNecessity.status : analysisResult.aiNecessity) === 'AI_NOT_REQUIRED' && "AI isn't necessary for this task"}
+                    {(typeof analysisResult.aiNecessity === 'object' ? analysisResult.aiNecessity.status : analysisResult.aiNecessity) === 'AI_OPTIONAL' && "AI is optional for this task"}
+                    {(typeof analysisResult.aiNecessity === 'object' ? analysisResult.aiNecessity.status : analysisResult.aiNecessity) === 'AI_REQUIRED' && "AI is justified for this task"}
+                  </h3>
                 </div>
+                <span className={`necessity-badge necessity-badge-${((typeof analysisResult.aiNecessity === 'object' ? analysisResult.aiNecessity.status : analysisResult.aiNecessity) || '').toLowerCase()}`}>
+                  {typeof analysisResult.aiNecessity === 'object' ? analysisResult.aiNecessity.status : analysisResult.aiNecessity}
+                </span>
               </div>
 
-              <div className="score-meta">
-                <span className="score-label">Internal Relative Efficiency Rating</span>
-                <p className="score-desc">
-                  Calculated from token compression, right-sized compute tiering, and avoidance of AI generation waste.
-                </p>
+              <div className="necessity-body">
+                {/* Reason / Explanation */}
+                {typeof analysisResult.aiNecessity === 'object' && analysisResult.aiNecessity.reason && (
+                  <p className="necessity-reason">
+                    {analysisResult.aiNecessity.reason}
+                  </p>
+                )}
+
+                {/* Suggested Alternative */}
+                {typeof analysisResult.aiNecessity === 'object' && analysisResult.aiNecessity.alternative && (
+                  <div className="necessity-alternative-box">
+                    <span className="alt-label">Suggested alternative:</span>
+                    <span className="alt-value">{analysisResult.aiNecessity.alternative}</span>
+                  </div>
+                )}
+
+                {/* Footer Conclusion */}
+                <div className="necessity-footer-note">
+                  {(typeof analysisResult.aiNecessity === 'object' ? analysisResult.aiNecessity.status : analysisResult.aiNecessity) === 'AI_REQUIRED' && (
+                    <span>EcoRoute: Your prompt is optimized for efficient AI use.</span>
+                  )}
+                  {(typeof analysisResult.aiNecessity === 'object' ? analysisResult.aiNecessity.status : analysisResult.aiNecessity) === 'AI_OPTIONAL' && (
+                    <span>EcoRoute: AI can be used, but a simpler non-AI approach may work.</span>
+                  )}
+                  {(typeof analysisResult.aiNecessity === 'object' ? analysisResult.aiNecessity.status : analysisResult.aiNecessity) === 'AI_NOT_REQUIRED' && (
+                    <span>EcoRoute: Avoided unnecessary LLM compute. Use a lightweight alternative instead.</span>
+                  )}
+                </div>
               </div>
+            </div>
+          )}
+
+          {/* 1.5 AI Usage Receipt */}
+          {analysisResult.aiNecessity && (
+            <div className="workspace-card ai-receipt-card full-width">
+              <div className="card-header space-between">
+                <div>
+                  <span className="card-tag">RECEIPT / ECO-EFFICIENCY STATEMENT</span>
+                  <h3>🧾 AI Usage Receipt</h3>
+                </div>
+                <span className="receipt-timestamp">
+                  EcoRoute Verified
+                </span>
+              </div>
+
+              <div className="receipt-body">
+                {(typeof analysisResult.aiNecessity === 'object' ? analysisResult.aiNecessity.status : analysisResult.aiNecessity) === 'AI_NOT_REQUIRED' ? (
+                  <>
+                    <div className="receipt-grid">
+                      <div className="receipt-item">
+                        <span className="receipt-label">AI necessity</span>
+                        <span className="receipt-val warning">🚫 AI not required</span>
+                      </div>
+                      <div className="receipt-item">
+                        <span className="receipt-label">EcoRoute recommendation</span>
+                        <span className="receipt-val">Use a lightweight alternative instead.</span>
+                      </div>
+                      <div className="receipt-item">
+                        <span className="receipt-label">Potential unnecessary AI inference avoided</span>
+                        <span className="receipt-val highlight">Yes</span>
+                      </div>
+                    </div>
+                    {typeof analysisResult.aiNecessity === 'object' && analysisResult.aiNecessity.alternative && (
+                      <div className="receipt-alt-box">
+                        <span className="receipt-label">Suggested alternative</span>
+                        <span className="receipt-alt-value">{analysisResult.aiNecessity.alternative}</span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="receipt-grid">
+                      <div className="receipt-item">
+                        <span className="receipt-label">AI necessity</span>
+                        <span className="receipt-val">
+                          {(typeof analysisResult.aiNecessity === 'object' ? analysisResult.aiNecessity.status : analysisResult.aiNecessity) === 'AI_REQUIRED'
+                            ? '✅ AI justified'
+                            : '⚠️ AI optional'}
+                        </span>
+                      </div>
+                      <div className="receipt-item">
+                        <span className="receipt-label">Prompt efficiency</span>
+                        <span className="receipt-val highlight">
+                          {analysisResult.tokenReductionPercentage > 0
+                            ? `${analysisResult.tokenReductionPercentage}%`
+                            : `${analysisResult.greenScore || 85}%`}
+                        </span>
+                      </div>
+                      <div className="receipt-item">
+                        <span className="receipt-label">Model choice</span>
+                        <span className="receipt-val">{analysisResult.recommendedModel || 'Right-sized model'}</span>
+                      </div>
+                      <div className="receipt-item">
+                        <span className="receipt-label">Output</span>
+                        <span className="receipt-val">
+                          {analysisResult.slop?.outputBloat === 'high' ? 'Bloat Risk' : 'Right-sized'}
+                        </span>
+                      </div>
+                      <div className="receipt-item">
+                        <span className="receipt-label">Avoidable computation</span>
+                        <span className="receipt-val highlight">
+                          {analysisResult.tokenReductionPercentage > 0
+                            ? `~${analysisResult.tokenReductionPercentage}%`
+                            : 'Potentially avoidable computation detected'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="receipt-changes-section">
+                      <span className="changes-title">What EcoRoute changed</span>
+                      <ul className="receipt-changes-list">
+                        <li>• Removed unnecessary/repeated instructions</li>
+                        <li>• Reduced unnecessary output bloat risk</li>
+                        <li>• Selected a more appropriate model ({analysisResult.recommendedModel || 'Right-sized'})</li>
+                      </ul>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 2. Existing Optimized Prompt */}
+          <div className="workspace-card prompt-opt-card full-width">
+            <div className="card-header space-between">
+              <div>
+                <span className="card-tag">02 / PROMPT REFINEMENT</span>
+                <h3>Optimized Prompt</h3>
+              </div>
+              <button
+                onClick={handleCopyPrompt}
+                className={`btn-copy ${copied ? 'copied' : ''}`}
+              >
+                {copied ? (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                    Copy Optimized Prompt
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="optimized-box">
+              <code>{analysisResult.optimizedPrompt}</code>
             </div>
           </div>
 
-          {/* 2. Slop Risk */}
+          {/* 3. Recommended Model */}
+          <div className="workspace-card model-card">
+            <div className="card-header">
+              <span className="card-tag">03 / COMPUTE RIGHT-SIZING</span>
+              <h3>Recommended Model</h3>
+            </div>
+
+            <div className="model-body">
+              <div className="model-badge-row">
+                <span className="model-name">{analysisResult.recommendedModel}</span>
+              </div>
+              <p className="model-reason">{analysisResult.reason}</p>
+            </div>
+          </div>
+
+          {/* 4. Slop / Output Analysis */}
           <div className="workspace-card slop-card">
             <div className="card-header">
-              <span className="card-tag">02 / GENERATION RISKS</span>
+              <span className="card-tag">04 / GENERATION RISKS</span>
               <div className="header-with-badge">
                 <h3>Slop Risk</h3>
                 <span className={`risk-badge ${getRiskBadgeColor(analysisResult.slop?.risk)}`}>
@@ -324,60 +474,54 @@ export default function AIWorkspace() {
             </div>
           </div>
 
-          {/* 3. Optimized Prompt */}
-          <div className="workspace-card prompt-opt-card full-width">
-            <div className="card-header space-between">
-              <div>
-                <span className="card-tag">03 / PROMPT REFINEMENT</span>
-                <h3>Optimized Prompt</h3>
-              </div>
-              <button
-                onClick={handleCopyPrompt}
-                className={`btn-copy ${copied ? 'copied' : ''}`}
-              >
-                {copied ? (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                    </svg>
-                    Copy Optimized Prompt
-                  </>
-                )}
-              </button>
-            </div>
-
-            <div className="optimized-box">
-              <code>{analysisResult.optimizedPrompt}</code>
-            </div>
-          </div>
-
-          {/* 4. Recommended Model */}
-          <div className="workspace-card model-card">
+          {/* 5. Green Score */}
+          <div className="workspace-card score-card">
             <div className="card-header">
-              <span className="card-tag">04 / COMPUTE RIGHT-SIZING</span>
-              <h3>Recommended Model</h3>
+              <span className="card-tag">05 / EFFICIENCY INDEX</span>
+              <h3>Green Score</h3>
             </div>
-
-            <div className="model-body">
-              <div className="model-badge-row">
-                <span className="model-name">{analysisResult.recommendedModel}</span>
+            
+            <div className="score-body">
+              <div className="score-visual">
+                <svg className="score-ring" viewBox="0 0 120 120">
+                  <circle
+                    className="ring-bg"
+                    cx="60"
+                    cy="60"
+                    r="52"
+                    strokeWidth="8"
+                  />
+                  <circle
+                    className="ring-val"
+                    cx="60"
+                    cy="60"
+                    r="52"
+                    strokeWidth="8"
+                    style={{
+                      strokeDasharray: 326.7,
+                      strokeDashoffset: 326.7 - (326.7 * (analysisResult.greenScore || 0)) / 100,
+                    }}
+                  />
+                </svg>
+                <div className="score-display">
+                  <span className="score-num">{analysisResult.greenScore}</span>
+                  <span className="score-denom">/ 100</span>
+                </div>
               </div>
-              <p className="model-reason">{analysisResult.reason}</p>
+
+              <div className="score-meta">
+                <span className="score-label">Internal Relative Efficiency Rating</span>
+                <p className="score-desc">
+                  Calculated from token compression, right-sized compute tiering, and avoidance of AI generation waste.
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* 5. Token Efficiency */}
+          {/* Token Efficiency */}
           <div className="workspace-card token-card">
             <div className="card-header">
-              <span className="card-tag">05 / TOKEN ARITHMETIC</span>
+              <span className="card-tag">TOKEN ARITHMETIC</span>
               <h3>Token Efficiency</h3>
             </div>
 

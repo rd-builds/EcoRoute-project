@@ -13,7 +13,7 @@ PROMPT QUALITY != PROMPT LENGTH
 """
 
 import re
-from typing import Optional, Tuple, Dict
+from typing import Optional, Tuple, Dict, Any
 
 
 def classify_task_type(prompt: str, user_selected_task: Optional[str] = None) -> str:
@@ -229,3 +229,94 @@ def evaluate_complexity(prompt: str, task_type: str, quality_score: float) -> st
 
     # 3. Standard writing, education, summaries, and medium tasks
     return 'medium'
+
+
+def evaluate_ai_necessity(prompt: str) -> Dict[str, Any]:
+    """
+    Evaluates whether an LLM is required, optional, or not required for the user prompt.
+    Categories:
+    - AI_NOT_REQUIRED: Deterministic math, unit/currency conversions, array sorting, string capitalization.
+    - AI_OPTIONAL: General advice, basic task organization, or routine templates where non-AI approaches exist.
+    - AI_REQUIRED: Semantic analysis, customer complaint theme extraction, professional text rewriting, code debugging, or complex reasoning.
+    """
+    lower = prompt.strip().lower()
+
+    # --- 1. AI_NOT_REQUIRED Patterns ---
+    
+    # A. Arithmetic & Simple Math:
+    # e.g., "What is 25 * 48?", "What is 15 * 8?", "25 * 48", "Calculate 15% of 800", "100 / 4"
+    math_expr = re.compile(
+        r"^(?:what\s+is\s+|calculate\s+|compute\s+|eval\s+|evaluate\s+)?(?:\d+\.?\d*%?\s*(?:of|\+|\-|\*|\/|x|×|÷|\^)\s*\d+\.?\d*%?|\d+\s*[\+\-\*\/x×÷]\s*\d+)\s*\??$",
+        re.IGNORECASE
+    )
+    if math_expr.search(lower) or re.search(r"\b\d+%\s+of\s+\d+\b", lower) or re.search(r"\b\d+\s*[\+\-\*\/x×÷]\s*\d+\b", lower):
+        if len(re.findall(r'\b\w+\b', lower)) <= 12 and not any(k in lower for k in ['explain', 'code', 'python', 'story']):
+            return {
+                "status": "AI_NOT_REQUIRED",
+                "confidence": 0.97,
+                "reason": "This is a deterministic arithmetic calculation that can be solved without an LLM.",
+                "alternative": "Use a basic calculator, spreadsheet formula, or local math expression evaluator."
+            }
+
+    # B. Unit and Currency Conversions:
+    # e.g., "Convert 5 km to meters.", "Convert 100 USD to INR.", "5 miles to km", "100 fahrenheit to celsius"
+    unit_conv = re.compile(
+        r"\b(?:convert|change|transform)\s+\d+(?:\.\d+)?\s*(?:km|kilometers?|m|meters?|miles?|cm|mm|kg|lbs?|pounds?|grams?|usd|inr|eur|gbp|cad|aud|yen|jpy|celsius|fahrenheit|f|c)\s+(?:to|in|into)\s+(?:km|kilometers?|m|meters?|miles?|cm|mm|kg|lbs?|pounds?|grams?|usd|inr|eur|gbp|cad|aud|yen|jpy|celsius|fahrenheit|f|c)\b",
+        re.IGNORECASE
+    )
+    if unit_conv.search(lower) or (("convert" in lower or "to" in lower) and any(u in lower for u in ["km to meters", "usd to inr", "miles to km", "kg to lbs", "celsius to fahrenheit"])):
+        return {
+            "status": "AI_NOT_REQUIRED",
+            "confidence": 0.97,
+            "reason": "This is a deterministic unit or currency conversion that can be calculated without an LLM.",
+            "alternative": "Use a simple unit conversion formula or currency converter tool."
+        }
+
+    # C. Deterministic Sorting & String Manipulations:
+    # e.g., "Sort these numbers", "Reverse string", "Uppercase this text"
+    sorting_expr = re.compile(
+        r"\b(?:sort|order|alphabetize|reverse|uppercase|lowercase|capitalize)\s+(?:these|the|this)?\s*(?:numbers?|list|array|words?|string|text)?\b",
+        re.IGNORECASE
+    )
+    if sorting_expr.search(lower) and len(re.findall(r'\b\w+\b', lower)) <= 15 and not any(k in lower for k in ["complaint", "feedback", "email", "essay", "article", "theme"]):
+        return {
+            "status": "AI_NOT_REQUIRED",
+            "confidence": 0.95,
+            "reason": "This is a simple data manipulation or sorting task that can be executed deterministically.",
+            "alternative": "Use local code or standard built-in programming functions (e.g., Array.sort(), str.upper())."
+        }
+
+    # --- 2. AI_OPTIONAL Patterns ---
+    
+    # Generic task organization, list generation tips, routine templates, common productivity frameworks:
+    # e.g., "Give me 5 ways to organize my daily tasks.", "Give me 5 ways to organize my tasks."
+    optional_patterns = [
+        re.compile(r"\b(?:give\s+me\s+)?(?:\d+\s+)?(?:ways|methods|tips|ideas|steps|frameworks)\s+to\s+(?:organize|manage|structure|plan)\s+(?:my\s+)?(?:daily\s+)?(?:tasks|day|schedule|work|time)\b", re.IGNORECASE),
+        re.compile(r"\b(?:how\s+to|best\s+way\s+to)\s+(?:organize|manage|structure)\s+(?:my\s+)?(?:tasks|schedule|notes)\b", re.IGNORECASE),
+        re.compile(r"\b(?:template|checklist|agenda)\s+for\s+(?:daily\s+tasks|meeting|weekly\s+review)\b", re.IGNORECASE)
+    ]
+    if any(pattern.search(lower) for pattern in optional_patterns):
+        return {
+            "status": "AI_OPTIONAL",
+            "confidence": 0.88,
+            "reason": "An LLM can provide suggestions, but standard productivity frameworks (e.g., Eisenhower Matrix, Time-Blocking) or task management templates work well without AI.",
+            "alternative": "Consider using established productivity frameworks like Time-Blocking, the Eisenhower Matrix, or standard task app templates."
+        }
+
+    # --- 3. AI_REQUIRED Patterns (and Fallback) ---
+    
+    reason = "The task requires language-model reasoning, semantic generation, or contextual synthesis."
+    if any(k in lower for k in ["complaint", "recurring themes", "analyze", "sentiment", "customer"]):
+        reason = "The task requires semantic analysis and theme extraction from unstructured text or customer feedback."
+    elif any(k in lower for k in ["rewrite", "edit", "tone", "professional", "concise", "email", "essay"]):
+        reason = "The task requires natural language editing, tone adjustment, and stylistic adaptation."
+    elif any(k in lower for k in ["debug", "code", "java", "python", "react", "inheritance", "algorithm", "function", "class"]):
+        reason = "The task requires technical problem solving, language syntax comprehension, or code analysis."
+
+    return {
+        "status": "AI_REQUIRED",
+        "confidence": 0.94,
+        "reason": reason,
+        "alternative": None
+    }
+

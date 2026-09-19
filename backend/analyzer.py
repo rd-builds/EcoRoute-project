@@ -7,7 +7,7 @@ from typing import Optional, List
 
 # Import helper functions from GreenMind / EcoRoute modules
 from llm_client import query_llm
-from classifier import classify_task_type, evaluate_prompt_quality, evaluate_complexity
+from classifier import classify_task_type, evaluate_prompt_quality, evaluate_complexity, evaluate_ai_necessity
 from optimizer import query_ollama_optimizer
 from token_counter import calculate_token_savings
 from slop_detector import run_slop_detection, detect_ai_necessity
@@ -26,6 +26,13 @@ class AnalyzeRequest(BaseModel):
     task: Optional[str] = None
     currentAI: Optional[str] = None
     history: Optional[List[str]] = []
+
+
+class AINecessityDetail(BaseModel):
+    status: str
+    confidence: float
+    reason: str
+    alternative: Optional[str] = None
 
 
 class SlopDetail(BaseModel):
@@ -47,7 +54,7 @@ class AnalyzeResponse(BaseModel):
     optimizedPrompt: str
     taskType: str
     complexity: str
-    aiNecessity: str
+    aiNecessity: AINecessityDetail
     slop: SlopDetail
     recommendedModel: str
     reason: str
@@ -71,13 +78,47 @@ async def analyze_prompt_endpoint(request: AnalyzeRequest):
     prompt = request.prompt
     history = request.history or []
 
-    # 1. Deterministically & accurately classify task domain and evaluate quality
+    # 1. AI Necessity Check (BEFORE existing optimization pipeline)
+    necessity_res = evaluate_ai_necessity(prompt)
+    ai_necessity_detail = AINecessityDetail(**necessity_res)
     task_type = classify_task_type(prompt, request.task)
+
+    # If AI is NOT required, bypass unnecessary LLM optimization
+    if necessity_res["status"] == "AI_NOT_REQUIRED":
+        token_stats = calculate_token_savings(prompt, prompt)
+        slop_detail = SlopDetail(
+            risk="low",
+            repetitionRisk="low",
+            outputBloat="low",
+            regenerationRisk="low",
+            reason="This task can be solved using non-AI tools or local computation.",
+            suggestion=necessity_res.get("alternative") or "Use a calculator or non-AI tool."
+        )
+        impact_detail = ImpactDetail(
+            energy="low",
+            water="low",
+            carbon="low"
+        )
+        return AnalyzeResponse(
+            optimizedPrompt=prompt,
+            taskType=task_type,
+            complexity="low",
+            aiNecessity=ai_necessity_detail,
+            slop=slop_detail,
+            recommendedModel="Non-AI / Local Tool",
+            reason="This task can be solved reliably without an LLM. EcoRoute skipped unnecessary LLM optimization.",
+            tokensBefore=token_stats["tokensBefore"],
+            tokensAfter=token_stats["tokensBefore"],
+            tokenReduction=0,
+            tokenReductionPercentage=0.0,
+            greenScore=100.0,
+            impact=impact_detail
+        )
+
+    # 2. For AI_OPTIONAL and AI_REQUIRED: continue existing optimization pipeline
     quality_score, quality_breakdown = evaluate_prompt_quality(prompt, task_type)
     complexity = evaluate_complexity(prompt, task_type, quality_score)
-    rule_necessity, _ = detect_ai_necessity(prompt)
 
-    # 2. Execute optimization and slop detection concurrently
     try:
         optimizer_task = query_ollama_optimizer(prompt, quality_score, task_type)
         slop_task = run_slop_detection(prompt, history, quality_score)
@@ -89,15 +130,15 @@ async def analyze_prompt_endpoint(request: AnalyzeRequest):
         raise HTTPException(status_code=500, detail=f"Analysis pipeline error: {str(e)}")
 
     optimized_prompt = optimizer_res.get("optimizedPrompt", prompt)
-    ai_necessity = rule_necessity
 
     # 3. Calculate token metrics
     token_stats = calculate_token_savings(prompt, optimized_prompt)
 
     # 4. Generate model recommendation based on task type and complexity
-    rec_tier = select_tier(task_type, complexity, ai_necessity)
+    mapped_necessity_level = "medium" if necessity_res["status"] == "AI_OPTIONAL" else "high"
+    rec_tier = select_tier(task_type, complexity, mapped_necessity_level)
     rec_entry = _TIER_BY_NAME.get(rec_tier, _TIER_BY_NAME["small"])
-    rec_reason = build_reason(rec_entry, task_type, complexity, ai_necessity)
+    rec_reason = build_reason(rec_entry, task_type, complexity, mapped_necessity_level)
 
     # 5. Calculate Green Score (0-100) reflecting true Prompt Quality
     score_req = ScoreRequest(
@@ -142,7 +183,7 @@ async def analyze_prompt_endpoint(request: AnalyzeRequest):
         optimizedPrompt=optimized_prompt,
         taskType=task_type,
         complexity=complexity,
-        aiNecessity=ai_necessity,
+        aiNecessity=ai_necessity_detail,
         slop=slop_detail,
         recommendedModel=rec_entry["name"],
         reason=rec_reason,

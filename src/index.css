@@ -1327,3 +1327,228 @@ footer {
   }
 }
 
+/* AI Necessity Card Styles */
+.ai-necessity-card {
+  transition: all 0.3s ease;
+  border-width: 1px;
+}
+
+.necessity-ai_not_required {
+  border-color: rgba(255, 190, 77, 0.6);
+  background: radial-gradient(circle at top right, rgba(255, 190, 77, 0.08), var(--bg2) 70%);
+  box-shadow: 0 0 25px rgba(255, 190, 77, 0.08);
+}
+
+.necessity-ai_optional {
+  border-color: rgba(100, 200, 255, 0.5);
+  background: radial-gradient(circle at top right, rgba(100, 200, 255, 0.06), var(--bg2) 70%);
+}
+
+.necessity-ai_required {
+  border-color: rgba(200, 255, 77, 0.4);
+  background: radial-gradient(circle at top right, rgba(200, 255, 77, 0.06), var(--bg2) 70%);
+}
+
+.necessity-heading {
+  font-size: 22px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-top: 4px;
+}
+
+.necessity-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 6px 14px;
+  border-radius: 2px;
+  text-transform: uppercase;
+}
+
+.necessity-badge-ai_not_required {
+  background: rgba(255, 190, 77, 0.2);
+  color: #ffbe4d;
+  border: 1px solid rgba(255, 190, 77, 0.5);
+}
+
+.necessity-badge-ai_optional {
+  background: rgba(100, 200, 255, 0.2);
+  color: #64c8ff;
+  border: 1px solid rgba(100, 200, 255, 0.5);
+}
+
+.necessity-badge-ai_required {
+  background: rgba(200, 255, 77, 0.15);
+  color: var(--lime);
+  border: 1px solid rgba(200, 255, 77, 0.4);
+}
+
+.necessity-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.necessity-statement {
+  font-size: 16px;
+  font-weight: 500;
+  color: #e2e8f0;
+  line-height: 1.5;
+}
+
+.necessity-reason {
+  font-size: 14px;
+  color: var(--dim);
+  line-height: 1.5;
+}
+
+.necessity-reason strong {
+  color: #ffffff;
+}
+
+.necessity-alternative-box {
+  background: #060804;
+  border: 1px solid var(--line);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.alt-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--lime);
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.alt-value {
+  font-size: 14.5px;
+  color: #ffffff;
+}
+
+.necessity-footer-note {
+  font-size: 13px;
+  color: var(--dim);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 12px;
+  line-height: 1.5;
+}
+
+.necessity-footer-note strong {
+  color: #ffffff;
+}
+
+/* AI Usage Receipt Card */
+.ai-receipt-card {
+  border: 1px dashed rgba(200, 255, 77, 0.35);
+  background: rgba(10, 14, 8, 0.85);
+  padding: 24px;
+}
+
+.receipt-timestamp {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--lime);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  background: rgba(200, 255, 77, 0.1);
+  padding: 4px 10px;
+  border: 1px solid rgba(200, 255, 77, 0.25);
+}
+
+.receipt-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.receipt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  background: #060804;
+  border: 1px solid var(--line);
+  padding: 16px;
+}
+
+.receipt-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.receipt-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.receipt-val {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.receipt-val.highlight {
+  color: var(--lime);
+}
+
+.receipt-val.warning {
+  color: #ffbe4d;
+}
+
+.receipt-alt-box {
+  background: #060804;
+  border: 1px solid var(--line);
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.receipt-alt-value {
+  font-size: 14px;
+  color: #ffffff;
+}
+
+.receipt-changes-section {
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.changes-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--lime);
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.receipt-changes-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.receipt-changes-list li {
+  font-size: 13.5px;
+  color: var(--ink);
+  line-height: 1.4;
+}
+
