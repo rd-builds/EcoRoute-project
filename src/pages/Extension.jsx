@@ -51,7 +51,7 @@ export default function Extension() {
         {/* Action Button & Subtext */}
         <div className="ext-cta-wrap">
           <a 
-            href={EXTENSION_DOWNLOAD_URL}
+            href="/EcoRoute-v1.0.0.zip"
             className="ext-download-btn"
             onClick={handleDownloadClick}
           >
