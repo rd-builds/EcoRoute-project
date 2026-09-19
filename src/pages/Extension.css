@@ -1,0 +1,308 @@
+/* Extension Page Styles */
+
+.ext-page {
+  min-height: calc(100vh - var(--header-height, 96px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 24px 70px;
+  position: relative;
+  color: var(--ink);
+  overflow-x: hidden;
+}
+
+/* Background ambiance */
+.ext-page::before {
+  content: "";
+  position: absolute;
+  top: 25%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 800px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(200, 255, 77, 0.05) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ext-container {
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
+  text-align: center;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* 1. Header & Text Content */
+.ext-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.18em;
+  color: var(--lime);
+  text-transform: uppercase;
+  margin-bottom: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 16px;
+  background: rgba(200, 255, 77, 0.05);
+  border: 1px solid rgba(200, 255, 77, 0.2);
+  border-radius: 999px;
+}
+
+.ext-tag .tag-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lime);
+  box-shadow: 0 0 8px var(--lime);
+}
+
+.ext-heading {
+  font-size: clamp(34px, 5.2vw, 60px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--ink);
+  margin-bottom: 20px;
+  max-width: 720px;
+}
+
+.ext-description {
+  color: var(--dim);
+  font-size: 16px;
+  line-height: 1.65;
+  max-width: 620px;
+  margin: 0 auto 34px;
+}
+
+/* 2. Primary CTA & Subtext */
+.ext-cta-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 50px;
+}
+
+.ext-download-btn {
+  background: var(--lime);
+  color: #050602;
+  border: 1px solid var(--lime);
+  padding: 14px 32px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
+  cursor: pointer;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, background 0.2s ease;
+}
+
+.ext-download-btn:hover {
+  background: #d8ff70;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(200, 255, 77, 0.35);
+}
+
+.ext-download-btn svg {
+  transition: transform 0.25s ease;
+}
+
+.ext-download-btn:hover svg {
+  transform: translateX(4px);
+}
+
+.ext-subtext {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--dim2);
+  letter-spacing: 0.04em;
+}
+
+/* 3. Subtle Browser Window Mockup */
+.ext-mockup-wrapper {
+  width: 100%;
+  max-width: 680px;
+  position: relative;
+}
+
+.ext-browser-frame {
+  background: rgba(10, 13, 6, 0.9);
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 25px rgba(200, 255, 77, 0.04);
+  backdrop-filter: blur(12px);
+  position: relative;
+  text-align: left;
+  overflow: hidden;
+}
+
+.ext-browser-frame::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(200, 255, 77, 0.4), transparent);
+}
+
+/* Browser top bar */
+.ext-browser-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(4, 5, 2, 0.6);
+}
+
+.ext-browser-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.ext-browser-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: rgba(243, 246, 236, 0.15);
+}
+
+.ext-browser-url {
+  flex: 1;
+  max-width: 240px;
+  margin: 0 auto;
+  background: rgba(243, 246, 236, 0.03);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.ext-browser-url svg {
+  width: 11px;
+  height: 11px;
+  stroke: var(--dim2);
+}
+
+/* Browser content area */
+.ext-browser-body {
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: linear-gradient(180deg, rgba(10, 13, 6, 0.4) 0%, rgba(4, 5, 2, 0.9) 100%);
+}
+
+.ext-mock-chatbox {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(243, 246, 236, 0.12);
+  padding: 16px 18px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ext-mock-raw-text {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  color: var(--dim);
+}
+
+.ext-mock-copilot-pill {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(200, 255, 77, 0.1);
+  border: 1px solid var(--lime);
+  color: var(--lime);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  box-shadow: 0 0 12px rgba(200, 255, 77, 0.15);
+}
+
+.ext-mock-copilot-pill svg {
+  width: 13px;
+  height: 13px;
+  fill: var(--lime);
+}
+
+.ext-mock-improved-preview {
+  background: rgba(10, 13, 6, 0.95);
+  border: 1px solid rgba(200, 255, 77, 0.3);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ext-mock-improved-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  color: var(--ink);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ext-mock-replace-badge {
+  flex-shrink: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: #050602;
+  background: var(--lime);
+  padding: 3px 8px;
+  font-weight: 700;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .ext-page {
+    padding: 20px 18px 50px;
+  }
+
+  .ext-heading {
+    font-size: 30px;
+  }
+
+  .ext-description {
+    font-size: 14.5px;
+    margin-bottom: 28px;
+  }
+
+  .ext-download-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .ext-browser-body {
+    padding: 16px;
+  }
+
+  .ext-mock-improved-preview {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

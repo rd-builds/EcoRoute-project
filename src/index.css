@@ -8,6 +8,7 @@
   --lime-dim: #87ab35;
   --line: rgba(243, 246, 236, 0.1);
   --line-bright: rgba(200, 255, 77, 0.45);
+  --header-height: 96px;
 }
 
 * {
@@ -154,8 +155,9 @@ header {
   top: 0;
   left: 0;
   right: 0;
-  z-index: 200;
+  z-index: 1000;
   padding: 26px 48px;
+  background: var(--bg);
 }
 
 nav {
@@ -255,6 +257,153 @@ nav {
 
 .btn:hover::before {
   transform: scaleX(1);
+}
+
+/* Header Auth & Profile Styles */
+.header-auth-slot {
+  display: flex;
+  align-items: center;
+  position: relative;
+  min-height: 42px;
+}
+
+.profile-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.profile-trigger {
+  position: relative;
+  background: rgba(243, 246, 236, 0.05);
+  border: 1px solid var(--line);
+  padding: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%);
+  transition: all 0.25s ease;
+}
+
+.profile-trigger:hover,
+.profile-trigger.active {
+  border-color: var(--lime);
+  background: rgba(200, 255, 77, 0.08);
+  box-shadow: 0 0 12px rgba(200, 255, 77, 0.2);
+}
+
+.profile-avatar {
+  width: 32px;
+  height: 32px;
+  background: #11160d;
+  color: var(--lime);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-status-dot {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lime);
+  box-shadow: 0 0 6px var(--lime);
+}
+
+.profile-dropdown {
+  position: absolute;
+  top: calc(100% + 14px);
+  right: 0;
+  width: 240px;
+  background: rgba(10, 13, 6, 0.96);
+  border: 1px solid var(--line);
+  padding: 16px;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.8), 0 0 20px rgba(200, 255, 77, 0.05);
+  backdrop-filter: blur(16px);
+  z-index: 300;
+  animation: dropdown-appear 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes dropdown-appear {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.profile-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profile-user-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.profile-user-email {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-user-tag {
+  align-self: flex-start;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  color: var(--lime);
+  background: rgba(200, 255, 77, 0.1);
+  padding: 2px 6px;
+  margin-top: 4px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.profile-dropdown-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 14px 0 12px;
+}
+
+.profile-logout-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--dim);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.profile-logout-btn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.profile-logout-btn svg {
+  transition: transform 0.2s ease;
+}
+
+.profile-logout-btn:hover svg {
+  stroke: #ef4444;
+  transform: translateX(2px);
 }
 
 .hero {
@@ -522,7 +671,17 @@ footer {
   gap: 10px;
 }
 
+.main-content {
+  position: relative;
+  padding-top: var(--header-height);
+  min-height: calc(100vh - var(--header-height));
+  z-index: 1;
+}
+
 @media (max-width: 860px) {
+  :root {
+    --header-height: 84px;
+  }
   header { padding: 20px 24px; }
   .nav-links { display: none; }
   .trust { padding: 50px 24px 70px; }

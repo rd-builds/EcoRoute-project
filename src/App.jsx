@@ -6,7 +6,11 @@ import Header from './components/Header';
 import Hero from './sections/Hero';
 import Trust from './sections/Trust';
 import Footer from './components/Footer';
-import AIWorkspace from './pages/AIWorkspace';
+import HowItWorks from './pages/HowItWorks';
+import Extension from './pages/Extension';
+import Dashboard from './pages/Dashboard';
+import SignIn from './pages/SignIn';
+import { AuthProvider } from './context/AuthContext';
 
 function HomeView() {
   return (
@@ -29,21 +33,25 @@ function App() {
   }, [loading]);
 
   return (
-    <>
+    <AuthProvider>
       <DotPointer />
       {loading && <Loader onComplete={() => setLoading(false)} />}
       
       <Header />
-      <Routes>
-        <Route path="/" element={<HomeView />} />
-        <Route path="/workspace" element={<AIWorkspace />} />
-        <Route path="/how-it-works" element={<HomeView />} />
-        <Route path="/extension" element={<HomeView />} />
-        <Route path="/dashboard" element={<HomeView />} />
-        <Route path="*" element={<HomeView />} />
-      </Routes>
+      <main className="main-content">
+        <Routes>
+          <Route path="/" element={<HomeView />} />
+          <Route path="/how-it-works" element={<HowItWorks />} />
+          <Route path="/extension" element={<Extension />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/workspace" element={<HomeView />} />
+          <Route path="/signin" element={<SignIn />} />
+          <Route path="/login" element={<SignIn />} />
+          <Route path="*" element={<HomeView />} />
+        </Routes>
+      </main>
       <Footer />
-    </>
+    </AuthProvider>
   );
 }
 
