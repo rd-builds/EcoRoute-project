@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { analyzePrompt } from '../api/backend';
 import { useAuth } from '../context/AuthContext';
 
@@ -11,6 +11,93 @@ export default function AIWorkspace() {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
+
+  // Voice-to-Intent States
+  const [isListening, setIsListening] = useState(false);
+  const [voiceError, setVoiceError] = useState(null);
+  const [wasVoiceUsed, setWasVoiceUsed] = useState(false);
+  const recognitionRef = useRef(null);
+
+  const SpeechRecognition = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const isSpeechSupported = Boolean(SpeechRecognition);
+
+  const startListening = () => {
+    if (!isSpeechSupported) {
+      setVoiceError("Voice input isn't supported in this browser. You can still type your request.");
+      return;
+    }
+    if (isListening) return;
+
+    setVoiceError(null);
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        setWasVoiceUsed(true);
+      };
+
+      recognition.onresult = (event) => {
+        let currentTranscript = '';
+        for (let i = 0; i < event.results.length; i++) {
+          currentTranscript += event.results[i][0].transcript;
+        }
+        if (currentTranscript.trim()) {
+          setPrompt(currentTranscript);
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.warn('Speech recognition event:', event.error);
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          setVoiceError('Microphone permission was denied. Please check your browser settings.');
+        } else if (event.error === 'no-speech') {
+          setVoiceError('No speech was detected. Please try speaking again.');
+        } else if (event.error !== 'aborted') {
+          setVoiceError(`Speech recognition error: ${event.error}`);
+        }
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.error('Failed to initialize speech recognition:', err);
+      setVoiceError('Failed to access microphone or start voice input.');
+      setIsListening(false);
+    }
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {
+        // ignore error if already stopped
+      }
+    }
+    setIsListening(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch {
+          // cleanup
+        }
+      }
+    };
+  }, []);
 
   const samplePrompts = [
     {
@@ -47,6 +134,11 @@ export default function AIWorkspace() {
     if (!promptToUse.trim()) {
       setError('Please enter a prompt to analyze.');
       return;
+    }
+
+    // Stop listening if user clicks analyze while recording
+    if (isListening) {
+      stopListening();
     }
 
     setError(null);
@@ -91,6 +183,7 @@ export default function AIWorkspace() {
   };
 
   const selectSamplePrompt = (sample) => {
+    setWasVoiceUsed(false);
     setPrompt(sample.text);
     setTask(sample.task);
     handleAnalyze(sample.text, sample.task);
@@ -104,6 +197,27 @@ export default function AIWorkspace() {
     return 'risk-badge-low';
   };
 
+  const getIntentSummary = (promptText, taskType) => {
+    const lower = (promptText || '').toLowerCase();
+    if (lower.includes('birthday') || lower.includes('party') || lower.includes('creative ideas')) return 'Creative Idea Generation';
+    if (lower.includes('complaint') || lower.includes('customer review') || lower.includes('reviews')) return 'Customer Feedback Analysis';
+    if (lower.includes('organize') || lower.includes('daily task') || lower.includes('tasks')) return 'Task Organization & Planning';
+    if (lower.includes('convert') || lower.includes('km') || lower.includes('meters')) return 'Unit / Metric Conversion';
+    if (lower.includes('*') || lower.includes('+') || lower.includes('/') || lower.includes('math') || lower.includes('calculate') || lower.includes('25 * 48')) return 'Arithmetic Calculation';
+    if (lower.includes('email') || lower.includes('rewrite') || lower.includes('letter')) return 'Text Rewriting & Formatting';
+
+    const map = {
+      coding: 'Software Development & Code Analysis',
+      writing: 'Content Editing & Drafting',
+      research: 'Research & Information Extraction',
+      summarization: 'Document Summarization',
+      brainstorming: 'Creative Brainstorming',
+      education: 'Educational Concept Explanation',
+      other: 'General Inquiry / Task Analysis'
+    };
+    return map[taskType] || 'General Inquiry';
+  };
+
   return (
     <div className="workspace-container">
       {/* Header */}
@@ -115,13 +229,82 @@ export default function AIWorkspace() {
         </p>
       </div>
 
-      {/* Main Prompt Input Box */}
+      {/* Main Prompt Input Box with Voice-to-Intent */}
       <div className="workspace-card prompt-card">
+        {/* Voice-to-Intent Control Bar */}
+        <div className="voice-intent-bar">
+          <div className="voice-intent-label-group">
+            <span className="voice-intent-tag">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="22"/>
+              </svg>
+              Voice → Intent
+            </span>
+            <span className="voice-intent-subtitle">
+              Speak naturally. EcoRoute figures out what the task needs.
+            </span>
+          </div>
+
+          <div className="voice-actions">
+            {!isSpeechSupported ? (
+              <div className="voice-unsupported-tag">
+                <span>Voice input isn't supported in this browser. You can still type your request.</span>
+              </div>
+            ) : isListening ? (
+              <div className="voice-recording-wrapper">
+                <div className="listening-indicator">
+                  <span className="pulsing-red-dot"></span>
+                  <span className="listening-txt">Listening... "Tell EcoRoute what you need..."</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={stopListening}
+                  className="btn-voice-stop"
+                  title="Stop recording"
+                >
+                  <span className="stop-square"></span>
+                  Stop Recording
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={startListening}
+                className="btn-voice-start"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                  <line x1="12" y1="19" x2="12" y2="22"/>
+                </svg>
+                Speak your request
+              </button>
+            )}
+          </div>
+        </div>
+
+        {voiceError && (
+          <div className="voice-error-banner">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span>{voiceError}</span>
+            <button onClick={() => setVoiceError(null)} className="voice-error-close">✕</button>
+          </div>
+        )}
+
         <textarea
-          className="prompt-textarea"
+          className={`prompt-textarea ${isListening ? 'listening-active' : ''}`}
           value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="What do you want AI to help you with?"
+          onChange={(e) => {
+            setPrompt(e.target.value);
+            setWasVoiceUsed(false);
+          }}
+          placeholder={isListening ? "Listening... Speak your request naturally..." : "What do you want AI to help you with?"}
           rows={4}
         />
 
@@ -240,6 +423,36 @@ export default function AIWorkspace() {
       {analysisResult && !isAnalyzing && (
         <div className="analysis-grid">
           
+          {/* Voice-to-Intent Summary Banner */}
+          <div className="voice-interpretation-card full-width">
+            <div className="voice-interp-header">
+              <div className="voice-interp-badge">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                  <line x1="12" y1="19" x2="12" y2="22"/>
+                </svg>
+                <span>VOICE → INTENT INTERPRETATION</span>
+              </div>
+              <span className="voice-interp-tagline">Natural Language Request Analyzed</span>
+            </div>
+
+            <div className="voice-interp-grid">
+              <div className="voice-interp-item">
+                <span className="voice-interp-label">EcoRoute understood</span>
+                <span className="voice-interp-value">{getIntentSummary(prompt, analysisResult.taskType)}</span>
+              </div>
+              <div className="voice-interp-item">
+                <span className="voice-interp-label">Compute Recommendation</span>
+                <span className={`voice-interp-decision status-${((typeof analysisResult.aiNecessity === 'object' ? analysisResult.aiNecessity.status : analysisResult.aiNecessity) || '').toLowerCase()}`}>
+                  {(typeof analysisResult.aiNecessity === 'object' ? analysisResult.aiNecessity.status : analysisResult.aiNecessity) === 'AI_NOT_REQUIRED' && "AI may not be necessary for this task"}
+                  {(typeof analysisResult.aiNecessity === 'object' ? analysisResult.aiNecessity.status : analysisResult.aiNecessity) === 'AI_OPTIONAL' && "AI is optional for this task"}
+                  {(typeof analysisResult.aiNecessity === 'object' ? analysisResult.aiNecessity.status : analysisResult.aiNecessity) === 'AI_REQUIRED' && "AI is justified for this task"}
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* 1. AI Necessity Decision */}
           {analysisResult.aiNecessity && (
             <div className={`workspace-card ai-necessity-card full-width necessity-${((typeof analysisResult.aiNecessity === 'object' ? analysisResult.aiNecessity.status : analysisResult.aiNecessity) || '').toLowerCase()}`}>

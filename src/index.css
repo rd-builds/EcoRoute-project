@@ -7,7 +7,7 @@
   --lime: #c8ff4d;
   --lime-dim: #87ab35;
   --line: rgba(243, 246, 236, 0.1);
-  --line-bright: rgba(200, 255, 77, 0.45);
+  --line-bright: rgba(82, 186, 106, 0.45);
   --header-height: 96px;
 }
 
@@ -528,10 +528,56 @@ nav {
 }
 
 .hero-cta {
-  margin-top: 32px;
+  margin-top: 28px;
   display: flex;
   justify-content: center;
   gap: 14px;
+  flex-wrap: wrap;
+}
+
+/* Process Flow Interactive Band */
+.hero-process-flow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 32px auto 0;
+  max-width: 820px;
+  background: rgba(10, 14, 8, 0.7);
+  border: 1px solid var(--line);
+  padding: 12px 20px;
+  border-radius: 6px;
+  flex-wrap: wrap;
+}
+
+.process-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.step-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--lime-dim);
+  font-weight: 700;
+}
+
+.step-name {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  color: var(--dim);
+  font-weight: 500;
+}
+
+.step-highlight .step-name {
+  color: var(--lime);
+  font-weight: 700;
+}
+
+.process-arrow {
+  color: var(--dim2);
+  font-size: 13px;
 }
 
 .btn-solid {
@@ -546,19 +592,41 @@ nav {
   align-items: center;
   gap: 9px;
   text-decoration: none;
-  transition: transform .3s cubic-bezier(.3, .8, .3, 1);
+  transition: transform .25s ease, box-shadow .25s ease;
 }
 
 .btn-solid:hover {
-  transform: translateY(-3px);
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(200, 255, 77, 0.25);
 }
 
 .btn-solid svg {
-  transition: transform .3s ease;
+  transition: transform .25s ease;
 }
 
 .btn-solid:hover svg {
   transform: translateX(4px);
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  padding: 14px 24px;
+  font-weight: 600;
+  font-size: 14px;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  transition: all 0.25s ease;
+}
+
+.btn-outline:hover {
+  border-color: var(--lime);
+  color: var(--lime);
+  transform: translateY(-2px);
 }
 
 .scroll-cue {
@@ -1551,4 +1619,291 @@ footer {
   color: var(--ink);
   line-height: 1.4;
 }
+
+/* ==========================================================================
+   Voice-to-Intent Controls & Animations
+   ========================================================================== */
+
+.voice-intent-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.voice-intent-label-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.voice-intent-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--lime);
+  text-transform: uppercase;
+}
+
+.voice-intent-subtitle {
+  font-size: 13px;
+  color: var(--dim);
+}
+
+.voice-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-voice-start {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(200, 255, 77, 0.08);
+  border: 1px solid rgba(200, 255, 77, 0.3);
+  color: var(--lime);
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.btn-voice-start:hover {
+  background: rgba(200, 255, 77, 0.18);
+  border-color: var(--lime);
+  box-shadow: 0 0 15px rgba(200, 255, 77, 0.25);
+  transform: translateY(-1px);
+}
+
+.voice-recording-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(255, 77, 77, 0.08);
+  border: 1px solid rgba(255, 77, 77, 0.35);
+  padding: 6px 14px;
+  border-radius: 4px;
+}
+
+.listening-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pulsing-red-dot {
+  width: 10px;
+  height: 10px;
+  background-color: #ff4d4d;
+  border-radius: 50%;
+  animation: pulse-red 1.2s infinite ease-in-out;
+  box-shadow: 0 0 8px #ff4d4d;
+}
+
+@keyframes pulse-red {
+  0% {
+    transform: scale(0.9);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 0.6;
+    box-shadow: 0 0 16px #ff4d4d;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 1;
+  }
+}
+
+.listening-txt {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12.5px;
+  color: #ff8080;
+  font-weight: 500;
+}
+
+.btn-voice-stop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ff4d4d;
+  color: #050602;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-voice-stop:hover {
+  background: #ff6666;
+  box-shadow: 0 0 12px rgba(255, 77, 77, 0.4);
+}
+
+.stop-square {
+  width: 8px;
+  height: 8px;
+  background: #050602;
+}
+
+.voice-unsupported-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: #ffbe4d;
+  background: rgba(255, 190, 77, 0.1);
+  border: 1px solid rgba(255, 190, 77, 0.3);
+  padding: 6px 12px;
+  border-radius: 4px;
+}
+
+.prompt-textarea.listening-active {
+  border-color: rgba(255, 77, 77, 0.6);
+  box-shadow: 0 0 20px rgba(255, 77, 77, 0.15);
+  background: rgba(20, 8, 8, 0.6);
+}
+
+.voice-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 77, 77, 0.1);
+  border: 1px solid rgba(255, 77, 77, 0.35);
+  color: #ff9999;
+  padding: 10px 14px;
+  border-radius: 4px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+.voice-error-close {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: #ff9999;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* Voice-to-Intent Interpretation Summary Card */
+.voice-interpretation-card {
+  background: radial-gradient(circle at top left, rgba(200, 255, 77, 0.08), var(--bg2) 80%);
+  border: 1px solid rgba(200, 255, 77, 0.35);
+  border-radius: 6px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 0 25px rgba(200, 255, 77, 0.05);
+}
+
+.voice-interp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.voice-interp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--lime);
+  background: rgba(200, 255, 77, 0.12);
+  padding: 4px 10px;
+  border-radius: 3px;
+  border: 1px solid rgba(200, 255, 77, 0.3);
+}
+
+.voice-interp-tagline {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--dim);
+}
+
+.voice-interp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.voice-interp-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.voice-interp-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+}
+
+.voice-interp-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.voice-interp-decision {
+  font-size: 15px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 3px;
+  display: inline-block;
+  width: fit-content;
+}
+
+.voice-interp-decision.status-ai_not_required {
+  background: rgba(255, 190, 77, 0.15);
+  color: #ffbe4d;
+  border: 1px solid rgba(255, 190, 77, 0.4);
+}
+
+.voice-interp-decision.status-ai_optional {
+  background: rgba(100, 200, 255, 0.15);
+  color: #64c8ff;
+  border: 1px solid rgba(100, 200, 255, 0.4);
+}
+
+.voice-interp-decision.status-ai_required {
+  background: rgba(200, 255, 77, 0.15);
+  color: var(--lime);
+  border: 1px solid rgba(200, 255, 77, 0.4);
+}
+
+@media (max-width: 640px) {
+  .voice-intent-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .voice-interp-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 
