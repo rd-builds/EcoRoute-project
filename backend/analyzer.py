@@ -1,11 +1,12 @@
+import os
 import json
 import asyncio
-import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
 # Import helper functions from GreenMind modules
+from llm_client import query_llm
 from optimizer import query_ollama_optimizer
 from token_counter import calculate_token_savings
 from slop_detector import run_slop_detection, detect_ai_necessity
@@ -13,9 +14,6 @@ from recommender import select_tier, _TIER_BY_NAME, build_reason
 from impact import ScoreRequest, compute_green_score, ImpactRequest, estimate_relative_resource_impact
 
 router = APIRouter()
-
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "qwen3:0.6b"
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +59,7 @@ class AnalyzeResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Ollama Core Prompt Analyzer Helper
+# Core Prompt Analyzer Helper
 # ---------------------------------------------------------------------------
 
 async def query_ollama_analyzer(prompt: str) -> dict:
@@ -77,24 +75,13 @@ async def query_ollama_analyzer(prompt: str) -> dict:
         f"User Prompt: {prompt}"
     )
 
-    payload = {
-        "model": MODEL_NAME,
-        "prompt": prompt_template,
-        "stream": False,
-        "format": "json"
-    }
-
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            response = await client.post(OLLAMA_URL, json=payload)
-            response.raise_for_status()
-            data = response.json()
-            raw_text = data.get("response", "{}").strip()
-            return json.loads(raw_text)
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=500, detail=f"Ollama connection error: {str(e)}")
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=500, detail="Failed to parse valid JSON output from Ollama")
+    try:
+        raw_text = await query_llm(prompt_template)
+        return json.loads(raw_text)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="Failed to parse valid JSON output from LLM provider")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LLM provider error: {str(e)}")
 
 
 # ---------------------------------------------------------------------------

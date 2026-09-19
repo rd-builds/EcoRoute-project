@@ -1,12 +1,10 @@
+import os
 import json
-import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from llm_client import query_llm
 
 router = APIRouter()
-
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "qwen3:0.6b"
 
 
 class OptimizeRequest(BaseModel):
@@ -66,25 +64,14 @@ async def query_ollama_optimizer(prompt: str) -> dict:
         f"User Prompt: {prompt}"
     )
 
-    payload = {
-        "model": MODEL_NAME,
-        "prompt": prompt_template,
-        "stream": False,
-        "format": "json"
-    }
-
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            response = await client.post(OLLAMA_URL, json=payload)
-            response.raise_for_status()
-            data = response.json()
-            raw_text = data.get("response", "{}").strip()
-            return json.loads(raw_text)
-        except (httpx.HTTPError, json.JSONDecodeError):
-            return {
-                "optimizedPrompt": prompt,
-                "changes": []
-            }
+    try:
+        raw_text = await query_llm(prompt_template)
+        return json.loads(raw_text)
+    except Exception:
+        return {
+            "optimizedPrompt": prompt,
+            "changes": []
+        }
 
 
 @router.post("/optimize", response_model=OptimizeResponse)

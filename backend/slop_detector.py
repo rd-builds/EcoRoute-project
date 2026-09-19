@@ -11,17 +11,15 @@ Architecture:
     The LLM cannot override scores.
 """
 
+import os
 import re
 import json
-import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
+from llm_client import query_llm
 
 router = APIRouter()
-
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "qwen3:0.6b"
 
 RISK_WEIGHT = {"low": 1, "medium": 2, "high": 3}
 RISK_LABEL  = {1: "low", 2: "medium", 3: "high"}
@@ -228,24 +226,14 @@ async def query_llm_for_narrative(
         "}\n"
     )
 
-    payload = {
-        "model": MODEL_NAME,
-        "prompt": narrative_prompt,
-        "stream": False,
-        "format": "json",
-    }
-
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            response = await client.post(OLLAMA_URL, json=payload)
-            response.raise_for_status()
-            data = response.json()
-            return json.loads(data.get("response", "{}").strip())
-        except Exception:
-            return {
-                "reason": "Potential generation risks detected based on prompt analysis.",
-                "suggestion": rule_suggestion or "Consider refining request parameters."
-            }
+    try:
+        raw_text = await query_llm(narrative_prompt)
+        return json.loads(raw_text)
+    except Exception:
+        return {
+            "reason": "Potential generation risks detected based on prompt analysis.",
+            "suggestion": rule_suggestion or "Consider refining request parameters."
+        }
 
 
 async def run_slop_detection(prompt: str, history: Optional[list[str]] = None) -> dict:
