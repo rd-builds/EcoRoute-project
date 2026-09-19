@@ -1,14 +1,13 @@
 """
-slop_detector.py — GreenMind Efficiency Detector
--------------------------------------------------
+slop_detector.py — GreenMind Efficiency & Slop Risk Detector
+-------------------------------------------------------------
 Architecture:
   Layer 1 (Python rules): Deterministically classifies repetitionRisk,
-    outputBloat, aiNecessity, and regenerationRisk from the prompt text
+    outputBloat, aiNecessity, ambiguityRisk, and regenerationRisk from the prompt text
     and optional session history.
 
-  Layer 2 (LLM): Given the already-computed scores, generates a short
+  Layer 2 (LLM): Given the computed scores, generates a short
     human-readable `reason` and a practical `suggestion` when risks exist.
-    The LLM cannot override scores.
 """
 
 import os
@@ -16,7 +15,7 @@ import re
 import json
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from llm_client import query_llm
 
 router = APIRouter()
@@ -31,7 +30,8 @@ RISK_LABEL  = {1: "low", 2: "medium", 3: "high"}
 
 class SlopRequest(BaseModel):
     prompt: str
-    history: Optional[list[str]] = []
+    history: Optional[List[str]] = []
+    qualityScore: Optional[float] = 50.0
 
 
 class SlopResponse(BaseModel):
@@ -118,18 +118,29 @@ def detect_ai_necessity(prompt: str) -> tuple[str, str]:
     return "medium", "Task has moderate AI value."
 
 
+def detect_ambiguity_risk(prompt: str, quality_score: float = 50.0) -> tuple[str, str]:
+    words = [w for w in re.findall(r'\b\w+\b', prompt.strip())]
+    if quality_score < 40 and len(words) <= 5:
+        return "high", "High ambiguity: vague or incomplete prompt triggers generic or irrelevant generation."
+    if quality_score < 60 and len(words) <= 8:
+        return "medium", "Moderate ambiguity: missing key context or formatting specifications."
+    return "low", ""
+
+
 _REGEN_KEYWORDS = re.compile(
     r"\b(another|again|regenerate|redo|one\s+more|try\s+again|different\s+version|"
     r"new\s+version|rewrite\s+this|redo\s+this|once\s+more)\b",
     re.IGNORECASE,
 )
 
-def detect_regeneration_risk(prompt: str, history: list[str]) -> tuple[str, str]:
+def detect_regeneration_risk(prompt: str, history: List[str], ambiguity_risk: str = "low") -> tuple[str, str]:
     current_has_regen = bool(_REGEN_KEYWORDS.search(prompt))
 
     if not history:
         if current_has_regen:
-            return "medium", "Current request contains regeneration phrasing with no prior history."
+            return "medium", "Current request contains regeneration phrasing."
+        if ambiguity_risk == "high":
+            return "medium", "Ambiguous prompt is likely to require follow-up regeneration."
         return "low", ""
 
     history_regen_count = sum(1 for h in history if _REGEN_KEYWORDS.search(h))
@@ -145,13 +156,6 @@ def detect_regeneration_risk(prompt: str, history: list[str]) -> tuple[str, str]
 
 
 def compute_aggregate_risk(scores: dict) -> str:
-    """
-    Overall slop risk is the maximum of the generation waste signals:
-    - repetitionRisk (low=1, medium=2, high=3)
-    - outputBloat (low=1, medium=2, high=3)
-    - regenerationRisk (low=1, medium=2, high=3)
-    - unnecessaryAiRisk (low aiNecessity = medium risk, high aiNecessity = low risk)
-    """
     ai_nec = scores.get("aiNecessity", "medium")
     unnecessary_ai_weight = 2 if ai_nec == "low" else 1
 
@@ -159,6 +163,7 @@ def compute_aggregate_risk(scores: dict) -> str:
         RISK_WEIGHT.get(scores.get("repetitionRisk", "low"), 1),
         RISK_WEIGHT.get(scores.get("outputBloat", "low"), 1),
         RISK_WEIGHT.get(scores.get("regenerationRisk", "low"), 1),
+        RISK_WEIGHT.get(scores.get("ambiguityRisk", "low"), 1),
         unnecessary_ai_weight
     ]
     return RISK_LABEL[max(weights)]
@@ -169,36 +174,23 @@ def build_rule_based_suggestion(
     output_bloat: str,
     ai_necessity: str,
     regeneration_risk: str = "low",
+    ambiguity_risk: str = "low",
     overall_risk: str = "low"
 ) -> str:
+    if ambiguity_risk == "high":
+        return "Add key context, explicit requirements, or target audience to avoid ambiguous or repetitive output."
     if repetition_risk == "high":
-        return (
-            "Generate 3 strong options first, review them to find the right direction, "
-            "then refine a single one — rather than generating all variations at once."
-        )
+        return "Generate 3 strong options first, review them to find the right direction, then refine a single one — rather than generating all variations at once."
     if repetition_risk == "medium":
-        return (
-            "Start with 3–5 options to find the right tone or style, "
-            "then expand from the best one."
-        )
+        return "Start with 3–5 options to find the right tone or style, then expand from the best one."
     if output_bloat == "high":
-        return (
-            "Start with a shorter explanation and expand only the sections that need more detail."
-        )
+        return "Start with a shorter explanation and expand only the sections that need more detail."
     if output_bloat == "medium":
-        return (
-            "A focused, shorter response may serve your immediate need better. "
-            "You can request more detail in a follow-up."
-        )
+        return "A focused, shorter response may serve your immediate need better. You can request more detail in a follow-up."
     if regeneration_risk in ("high", "medium"):
-        return (
-            "Review previous session outputs before requesting another variation to avoid unnecessary iterative generation."
-        )
+        return "Review previous session outputs before requesting another variation to avoid unnecessary iterative generation."
     if ai_necessity == "low":
-        return (
-            "This task could be completed with a calculator, a search engine, "
-            "or a simple text tool — no AI generation needed."
-        )
+        return "This task could be completed with a calculator, a search engine, or a simple text tool — no AI generation needed."
     return "No unnecessary generation risk detected; request is well-scoped."
 
 
@@ -213,12 +205,13 @@ async def query_llm_for_narrative(
 ) -> dict:
     narrative_prompt = (
         "You are GreenMind's Efficiency Detector. Write a short, non-judgmental reason "
-        "explaining why these signals were detected for the user's prompt.\n\n"
+        "explaining why these generation signals were detected for the user's prompt.\n\n"
         f"User Prompt: \"{prompt}\"\n"
         f"repetitionRisk: {scores['repetitionRisk']}\n"
         f"outputBloat: {scores['outputBloat']}\n"
         f"aiNecessity: {scores['aiNecessity']}\n"
-        f"regenerationRisk: {scores['regenerationRisk']}\n\n"
+        f"regenerationRisk: {scores['regenerationRisk']}\n"
+        f"ambiguityRisk: {scores['ambiguityRisk']}\n\n"
         "You MUST respond ONLY with a single valid raw JSON object matching:\n"
         "{\n"
         '  "reason": "One non-judgmental sentence describing the detected signals.",\n'
@@ -231,34 +224,37 @@ async def query_llm_for_narrative(
         return json.loads(raw_text)
     except Exception:
         return {
-            "reason": "Potential generation risks detected based on prompt analysis.",
-            "suggestion": rule_suggestion or "Consider refining request parameters."
+            "reason": "Potential generation risks or ambiguity detected based on prompt analysis.",
+            "suggestion": rule_suggestion or "Consider adding specific requirements or constraints."
         }
 
 
-async def run_slop_detection(prompt: str, history: Optional[list[str]] = None) -> dict:
+async def run_slop_detection(prompt: str, history: Optional[List[str]] = None, quality_score: float = 50.0) -> dict:
     history_list = history or []
     repetition_risk, rep_note  = detect_repetition_risk(prompt)
     output_bloat,    blob_note = detect_output_bloat(prompt)
     ai_necessity,    ai_note   = detect_ai_necessity(prompt)
-    regen_risk,      reg_note  = detect_regeneration_risk(prompt, history_list)
+    ambiguity_risk,  amb_note  = detect_ambiguity_risk(prompt, quality_score)
+    regen_risk,      reg_note  = detect_regeneration_risk(prompt, history_list, ambiguity_risk)
 
     scores = {
         "repetitionRisk":   repetition_risk,
         "outputBloat":      output_bloat,
         "aiNecessity":      ai_necessity,
+        "ambiguityRisk":    ambiguity_risk,
         "regenerationRisk": regen_risk,
     }
 
     overall_risk = compute_aggregate_risk(scores)
-    rule_suggestion = build_rule_based_suggestion(repetition_risk, output_bloat, ai_necessity, regen_risk, overall_risk)
+    rule_suggestion = build_rule_based_suggestion(repetition_risk, output_bloat, ai_necessity, regen_risk, ambiguity_risk, overall_risk)
 
     if overall_risk == "low":
         reason_text = "Prompt is well-scoped with no significant slop or unnecessary generation risks detected."
         suggestion_text = rule_suggestion
     else:
         narrative = await query_llm_for_narrative(prompt, scores, rule_suggestion)
-        reason_text = narrative.get("reason", " | ".join(filter(None, [rep_note, blob_note, ai_note, reg_note])) or "Potential generation risks detected.")
+        notes = list(filter(None, [amb_note, rep_note, blob_note, ai_note, reg_note]))
+        reason_text = narrative.get("reason", " | ".join(notes) if notes else "Potential generation risks detected.")
         suggestion_text = rule_suggestion or narrative.get("suggestion", "Consider refining request parameters.")
 
     return {
@@ -274,5 +270,5 @@ async def run_slop_detection(prompt: str, history: Optional[list[str]] = None) -
 
 @router.post("/slop-detect", response_model=SlopResponse)
 async def slop_detect_endpoint(request: SlopRequest):
-    data = await run_slop_detection(request.prompt, request.history or [])
+    data = await run_slop_detection(request.prompt, request.history or [], request.qualityScore or 50.0)
     return SlopResponse(**data)

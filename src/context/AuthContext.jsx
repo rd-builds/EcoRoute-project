@@ -18,11 +18,21 @@ export function AuthProvider({ children }) {
       if (savedUser) {
         const parsed = JSON.parse(savedUser);
         const storedAnalysis = localStorage.getItem(`ecoroute_analysis_${parsed.email.toLowerCase()}`);
-        return storedAnalysis ? JSON.parse(storedAnalysis) : null;
+        if (storedAnalysis) return JSON.parse(storedAnalysis);
       }
-      return null;
+      const generalAnalysis = localStorage.getItem('ecoroute_analysis_guest') || localStorage.getItem('ecoroute_latest_analysis');
+      return generalAnalysis ? JSON.parse(generalAnalysis) : null;
     } catch {
       return null;
+    }
+  });
+
+  const [analysisHistory, setAnalysisHistory] = useState(() => {
+    try {
+      const savedHistory = localStorage.getItem('ecoroute_analysis_history');
+      return savedHistory ? JSON.parse(savedHistory) : [];
+    } catch {
+      return [];
     }
   });
 
@@ -33,17 +43,18 @@ export function AuthProvider({ children }) {
       if (user) {
         localStorage.setItem('ecoroute_user', JSON.stringify(user));
         const storedAnalysis = localStorage.getItem(`ecoroute_analysis_${user.email.toLowerCase()}`);
-        setAnalysisData(storedAnalysis ? JSON.parse(storedAnalysis) : null);
+        if (storedAnalysis) {
+          setAnalysisData(JSON.parse(storedAnalysis));
+        }
       } else {
         localStorage.removeItem('ecoroute_user');
-        setAnalysisData(null);
       }
     } catch (e) {
       console.error('Failed to sync user state with localStorage', e);
     }
   }, [user]);
 
-  const login = async (email, password) => {
+  const login = async (email, _password) => {
     setIsLoading(true);
     // Simulate brief network delay
     await new Promise((resolve) => setTimeout(resolve, 600));
@@ -62,7 +73,8 @@ export function AuthProvider({ children }) {
     
     // Load that specific user's analysis data
     try {
-      const storedAnalysis = localStorage.getItem(`ecoroute_analysis_${email.toLowerCase()}`);
+      const storedAnalysis = localStorage.getItem(`ecoroute_analysis_${email.toLowerCase()}`) 
+        || localStorage.getItem('ecoroute_latest_analysis');
       setAnalysisData(storedAnalysis ? JSON.parse(storedAnalysis) : null);
     } catch {
       setAnalysisData(null);
@@ -74,27 +86,55 @@ export function AuthProvider({ children }) {
 
   const logout = () => {
     setUser(null);
-    setAnalysisData(null);
     localStorage.removeItem('ecoroute_user');
+    // Keep general latest analysis or clear as desired
+    const latest = localStorage.getItem('ecoroute_latest_analysis');
+    setAnalysisData(latest ? JSON.parse(latest) : null);
   };
 
   const saveAnalysis = (data) => {
-    if (!user) return;
+    if (!data) return;
     try {
-      localStorage.setItem(`ecoroute_analysis_${user.email.toLowerCase()}`, JSON.stringify(data));
-      setAnalysisData(data);
+      const timestamp = data.timestamp || new Date().toISOString();
+      const enrichedData = {
+        ...data,
+        timestamp,
+      };
+
+      // 1. General latest analysis
+      localStorage.setItem('ecoroute_latest_analysis', JSON.stringify(enrichedData));
+
+      // 2. User or guest keyed analysis
+      if (user?.email) {
+        localStorage.setItem(`ecoroute_analysis_${user.email.toLowerCase()}`, JSON.stringify(enrichedData));
+      } else {
+        localStorage.setItem('ecoroute_analysis_guest', JSON.stringify(enrichedData));
+      }
+
+      // 3. Update history log (retaining up to 50 previous analyses)
+      const existingHistory = JSON.parse(localStorage.getItem('ecoroute_analysis_history') || '[]');
+      const updatedHistory = [enrichedData, ...existingHistory.filter(item => item.timestamp !== timestamp)].slice(0, 50);
+      localStorage.setItem('ecoroute_analysis_history', JSON.stringify(updatedHistory));
+
+      setAnalysisData(enrichedData);
+      setAnalysisHistory(updatedHistory);
     } catch (e) {
-      console.error('Failed to save user analysis', e);
+      console.error('Failed to save analysis data', e);
     }
   };
 
   const clearAnalysis = () => {
-    if (!user) return;
     try {
-      localStorage.removeItem(`ecoroute_analysis_${user.email.toLowerCase()}`);
+      if (user?.email) {
+        localStorage.removeItem(`ecoroute_analysis_${user.email.toLowerCase()}`);
+      }
+      localStorage.removeItem('ecoroute_analysis_guest');
+      localStorage.removeItem('ecoroute_latest_analysis');
+      localStorage.removeItem('ecoroute_analysis_history');
       setAnalysisData(null);
+      setAnalysisHistory([]);
     } catch (e) {
-      console.error('Failed to clear user analysis', e);
+      console.error('Failed to clear analysis data', e);
     }
   };
 
@@ -106,6 +146,7 @@ export function AuthProvider({ children }) {
       login, 
       logout,
       analysisData,
+      analysisHistory,
       saveAnalysis,
       clearAnalysis
     }}>

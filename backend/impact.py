@@ -1,17 +1,9 @@
 """
-impact.py — GreenMind Environmental Impact & Green Score Module
---------------------------------------------------------------
+impact.py — EcoRoute Prompt Quality Score & Resource Impact Module
+-------------------------------------------------------------------
 Provides:
-1. Green Score calculation (internal relative efficiency index, 0-100).
+1. Green Score calculation (0-100), representing prompt quality, clarity, and effectiveness.
 2. Estimated relative resource demand classification (energy, water, carbon).
-
-METHODOLOGY & ASSUMPTIONS:
-- Resource demand tiers ("low", "medium", "high") reflect relative compute intensity.
-- We do NOT claim exact grams of CO2 or liters of water because datacenter PUE,
-  regional grid carbon intensity (gCO2/kWh), and cooling Water Usage Effectiveness (WUE)
-  vary drastically by location and hardware.
-- The modular architecture allows pluggable empirical data providers (e.g. WattTime,
-  CodeCarbon, or cloud provider sustainability APIs) in future versions.
 """
 
 from fastapi import APIRouter
@@ -29,6 +21,7 @@ RiskLevel = Literal["low", "medium", "high"]
 # ===========================================================================
 
 class ScoreRequest(BaseModel):
+    qualityScore: Optional[float] = 70.0
     tokenReductionPercentage: Optional[float] = 0.0
     modelTier: Optional[TierLevel] = "small"
     complexity: Optional[RiskLevel] = "medium"
@@ -39,7 +32,7 @@ class ScoreRequest(BaseModel):
 
 
 class Breakdown(BaseModel):
-    promptEfficiency: float
+    promptQuality: float
     modelEfficiency: float
     generationEfficiency: float
 
@@ -49,76 +42,39 @@ class ScoreResponse(BaseModel):
     breakdown: Breakdown
 
 
-def calculate_prompt_efficiency(reduction_pct: float) -> float:
-    if reduction_pct <= 0:
-        return 70.0
-    score = 70.0 + (reduction_pct / 50.0) * 30.0
-    return round(min(score, 100.0), 1)
-
-
-def calculate_model_efficiency(model_tier: str, complexity: str) -> float:
-    matrix = {
-        "nano": {"low": 100.0, "medium": 100.0, "high": 100.0},
-        "small": {"low": 90.0, "medium": 90.0, "high": 85.0},
-        "medium": {"low": 50.0, "medium": 50.0, "high": 75.0},
-        "large": {"low": 20.0, "medium": 40.0, "high": 65.0},
-    }
-    tier_scores = matrix.get(model_tier, matrix["small"])
-    return tier_scores.get(complexity, 80.0)
-
-
-def calculate_generation_efficiency(
-    slop_risk: str,
-    repetition_risk: str,
-    output_bloat: str,
-    regeneration_risk: str
-) -> float:
-    score = 100.0
-    if slop_risk == "high":
-        score -= 25.0
-    elif slop_risk == "medium":
-        score -= 10.0
-
-    if repetition_risk == "high":
-        score -= 20.0
-    elif repetition_risk == "medium":
-        score -= 10.0
-
-    if output_bloat == "high":
-        score -= 20.0
-    elif output_bloat == "medium":
-        score -= 10.0
-
-    if regeneration_risk == "high":
-        score -= 15.0
-    elif regeneration_risk == "medium":
-        score -= 5.0
-
-    return round(max(score, 0.0), 1)
-
-
 def compute_green_score(request: ScoreRequest) -> tuple[float, dict]:
-    prompt_eff = calculate_prompt_efficiency(request.tokenReductionPercentage or 0.0)
-    model_eff = calculate_model_efficiency(
-        request.modelTier or "small",
-        request.complexity or "medium"
-    )
-    gen_eff = calculate_generation_efficiency(
-        request.slopRisk or "low",
-        request.repetitionRisk or "low",
-        request.outputBloat or "low",
-        request.regenerationRisk or "low"
-    )
+    """
+    Computes the primary Green Score (0-100) reflecting PROMPT QUALITY, clarity, and usefulness.
+    PROMPT QUALITY != PROMPT LENGTH
+    """
+    quality = request.qualityScore if request.qualityScore is not None else 70.0
+    
+    # Generation efficiency deduction if significant repetition / bloat risk exists
+    gen_penalty = 0.0
+    if request.slopRisk == "high":
+        gen_penalty += 10.0
+    elif request.slopRisk == "medium":
+        gen_penalty += 4.0
 
-    total_score = (0.35 * prompt_eff) + (0.35 * model_eff) + (0.30 * gen_eff)
-    rounded_total = round(min(max(total_score, 0.0), 100.0), 1)
+    if request.repetitionRisk == "high":
+        gen_penalty += 8.0
+
+    final_score = round(min(max(quality - gen_penalty, 10.0), 99.0), 1)
+
+    model_eff_map = {
+        "nano": 95.0,
+        "small": 88.0,
+        "medium": 65.0,
+        "large": 45.0,
+    }
+    model_eff = model_eff_map.get(request.modelTier or "small", 85.0)
 
     breakdown = {
-        "promptEfficiency": prompt_eff,
+        "promptQuality": quality,
         "modelEfficiency": model_eff,
-        "generationEfficiency": gen_eff
+        "generationEfficiency": max(100.0 - (gen_penalty * 4.0), 0.0)
     }
-    return rounded_total, breakdown
+    return final_score, breakdown
 
 
 @router.post("/score", response_model=ScoreResponse)
@@ -150,15 +106,8 @@ class ImpactResponse(BaseModel):
 
 def estimate_relative_resource_impact(request: ImpactRequest) -> dict:
     """
-    Computes relative compute load based on model size, output bloat, and repetition.
-    
-    Modular Strategy:
-    - Base compute factor derived from model size tier:
-        nano: 1.0, small: 2.0, medium: 5.0, large: 8.0
-    - Multipliers for output bloat and repetition.
-    - Classifies resulting load index into low / medium / high tiers.
+    Computes relative compute load based on model size, output bloat, and task complexity.
     """
-    # 1. Base model compute weight
     base_weights = {
         "nano": 1.0,
         "small": 2.0,
@@ -167,36 +116,27 @@ def estimate_relative_resource_impact(request: ImpactRequest) -> dict:
     }
     compute_weight = base_weights.get(request.modelTier or "small", 2.0)
 
-    # 2. Token / Output Volume Multiplier
+    # Token / Output Volume Multiplier
     tokens = request.estimatedTokens or 500
     if request.outputBloat == "high" or tokens >= 3000:
-        volume_mult = 3.0
+        volume_mult = 2.5
     elif request.outputBloat == "medium" or tokens >= 1000:
-        volume_mult = 1.8
+        volume_mult = 1.6
     else:
         volume_mult = 1.0
 
-    # 3. Repetition Multiplier
-    if request.repetitionRisk == "high":
-        rep_mult = 2.0
-    elif request.repetitionRisk == "medium":
-        rep_mult = 1.3
-    else:
-        rep_mult = 1.0
+    # Complexity Multiplier
+    complexity_mult = 1.5 if request.complexity == "high" else (1.2 if request.complexity == "medium" else 0.8)
 
-    # Aggregate Load Index
-    relative_load_index = compute_weight * volume_mult * rep_mult
+    relative_load_index = compute_weight * volume_mult * complexity_mult
 
-    # Classification Thresholds
-    if relative_load_index < 4.0:
+    if relative_load_index < 3.5:
         level: RiskLevel = "low"
-    elif relative_load_index < 12.0:
+    elif relative_load_index < 9.0:
         level: RiskLevel = "medium"
     else:
         level: RiskLevel = "high"
 
-    # In current proxy baseline, energy, water, and carbon correlate directly
-    # with relative compute load.
     return {
         "energy": level,
         "water": level,

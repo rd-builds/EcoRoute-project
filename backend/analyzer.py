@@ -5,8 +5,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
-# Import helper functions from GreenMind modules
+# Import helper functions from GreenMind / EcoRoute modules
 from llm_client import query_llm
+from classifier import classify_task_type, evaluate_prompt_quality, evaluate_complexity
 from optimizer import query_ollama_optimizer
 from token_counter import calculate_token_savings
 from slop_detector import run_slop_detection, detect_ai_necessity
@@ -59,32 +60,6 @@ class AnalyzeResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Core Prompt Analyzer Helper
-# ---------------------------------------------------------------------------
-
-async def query_ollama_analyzer(prompt: str) -> dict:
-    prompt_template = (
-        "You are GreenMind's Prompt Analyzer. Analyze the user prompt and classify it into structured categories.\n"
-        "You MUST respond ONLY with a single valid raw JSON object matching this exact schema:\n"
-        "{\n"
-        '  "taskType": "coding" | "writing" | "research" | "summarization" | "brainstorming" | "education" | "other",\n'
-        '  "complexity": "low" | "medium" | "high",\n'
-        '  "aiNecessity": "low" | "medium" | "high",\n'
-        '  "reasoning": "A concise 1-2 sentence explanation of why the prompt was classified this way."\n'
-        "}\n\n"
-        f"User Prompt: {prompt}"
-    )
-
-    try:
-        raw_text = await query_llm(prompt_template)
-        return json.loads(raw_text)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=500, detail="Failed to parse valid JSON output from LLM provider")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"LLM provider error: {str(e)}")
-
-
-# ---------------------------------------------------------------------------
 # Integrated /analyze Endpoint
 # ---------------------------------------------------------------------------
 
@@ -96,41 +71,37 @@ async def analyze_prompt_endpoint(request: AnalyzeRequest):
     prompt = request.prompt
     history = request.history or []
 
-    # 1. Execute LLM-based tasks concurrently using asyncio.gather for speed
-    try:
-        analysis_task = query_ollama_analyzer(prompt)
-        optimizer_task = query_ollama_optimizer(prompt)
-        slop_task = run_slop_detection(prompt, history)
+    # 1. Deterministically & accurately classify task domain and evaluate quality
+    task_type = classify_task_type(prompt, request.task)
+    quality_score, quality_breakdown = evaluate_prompt_quality(prompt, task_type)
+    complexity = evaluate_complexity(prompt, task_type, quality_score)
+    rule_necessity, _ = detect_ai_necessity(prompt)
 
-        analysis_res, optimizer_res, slop_res = await asyncio.gather(
-            analysis_task, optimizer_task, slop_task
+    # 2. Execute optimization and slop detection concurrently
+    try:
+        optimizer_task = query_ollama_optimizer(prompt, quality_score, task_type)
+        slop_task = run_slop_detection(prompt, history, quality_score)
+
+        optimizer_res, slop_res = await asyncio.gather(
+            optimizer_task, slop_task
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Analysis pipeline error: {str(e)}")
 
-    # 2. Extract analysis outputs & reconcile aiNecessity
-    task_type = analysis_res.get("taskType", "other")
-    complexity = analysis_res.get("complexity", "medium")
-    raw_ai_necessity = analysis_res.get("aiNecessity", "medium")
     optimized_prompt = optimizer_res.get("optimizedPrompt", prompt)
-
-    rule_necessity, _ = detect_ai_necessity(prompt)
-    if rule_necessity == "high" and raw_ai_necessity == "low":
-        ai_necessity = "medium" if complexity == "low" else "high"
-    else:
-        ai_necessity = raw_ai_necessity
-
+    ai_necessity = rule_necessity
 
     # 3. Calculate token metrics
     token_stats = calculate_token_savings(prompt, optimized_prompt)
 
-    # 4. Generate model recommendation
+    # 4. Generate model recommendation based on task type and complexity
     rec_tier = select_tier(task_type, complexity, ai_necessity)
     rec_entry = _TIER_BY_NAME.get(rec_tier, _TIER_BY_NAME["small"])
     rec_reason = build_reason(rec_entry, task_type, complexity, ai_necessity)
 
-    # 5. Calculate Green Score (0-100)
+    # 5. Calculate Green Score (0-100) reflecting true Prompt Quality
     score_req = ScoreRequest(
+        qualityScore=quality_score,
         tokenReductionPercentage=token_stats["tokenReductionPercentage"],
         modelTier=rec_tier,
         complexity=complexity,

@@ -4,7 +4,10 @@ import './Dashboard.css';
 
 // Reusable Metric / Result Subcomponents
 function PromptEfficiencyCard({ data }) {
-  const hasData = data && data.originalTokens !== undefined && data.optimizedTokens !== undefined;
+  const originalTokens = data?.originalTokens ?? data?.tokensBefore;
+  const optimizedTokens = data?.optimizedTokens ?? data?.tokensAfter;
+  const reductionPercentage = data?.reductionPercentage ?? data?.tokenReductionPercentage ?? 0;
+  const hasData = data && originalTokens !== undefined && optimizedTokens !== undefined;
 
   return (
     <div className="dash-card">
@@ -15,11 +18,11 @@ function PromptEfficiencyCard({ data }) {
         {hasData ? (
           <>
             <div className="dash-tokens-row">
-              <span className="dash-token-num">{data.originalTokens}</span>
+              <span className="dash-token-num">{originalTokens}</span>
               <span className="dash-token-arrow">→</span>
-              <span className="dash-token-num highlight">{data.optimizedTokens}</span>
+              <span className="dash-token-num highlight">{optimizedTokens}</span>
             </div>
-            <span className="dash-reduction-badge">{data.reductionPercentage}% reduction</span>
+            <span className="dash-reduction-badge">{reductionPercentage}% reduction</span>
           </>
         ) : (
           <div className="dash-empty-state-text">No data yet</div>
@@ -35,7 +38,7 @@ function PromptEfficiencyCard({ data }) {
 }
 
 function TaskAnalysisCard({ data }) {
-  const hasData = data && data.taskType && data.complexity;
+  const hasData = Boolean(data && data.taskType && data.complexity);
 
   return (
     <div className="dash-card">
@@ -68,7 +71,7 @@ function TaskAnalysisCard({ data }) {
 }
 
 function ModelRecommendationCard({ data }) {
-  const hasData = data && data.recommendedModel;
+  const hasData = Boolean(data && data.recommendedModel);
 
   return (
     <div className="dash-card">
@@ -91,7 +94,7 @@ function ModelRecommendationCard({ data }) {
       </div>
       <p className="dash-card-desc">
         {hasData
-          ? (data.modelReasoning || 'Selected based on task reasoning requirements.')
+          ? (data.modelReasoning || data.reason || 'Selected based on task reasoning requirements.')
           : 'No recommendation available until a prompt is submitted.'}
       </p>
     </div>
@@ -101,13 +104,12 @@ function ModelRecommendationCard({ data }) {
 function GreenScoreCard({ data }) {
   const hasScore = data && typeof data.greenScore === 'number';
   const targetScore = hasScore ? data.greenScore : 0;
-  const [animatedScore, setAnimatedScore] = useState(0);
+  const [animatedScore, setAnimatedScore] = useState(targetScore);
   const radius = 30;
   const circumference = 2 * Math.PI * radius;
 
   useEffect(() => {
     if (!hasScore) {
-      setAnimatedScore(0);
       return;
     }
 
@@ -126,7 +128,8 @@ function GreenScoreCard({ data }) {
       }
     };
 
-    requestAnimationFrame(animate);
+    const frameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameId);
   }, [hasScore, targetScore]);
 
   const strokeDashoffset = hasScore
@@ -136,6 +139,7 @@ function GreenScoreCard({ data }) {
   const energyVal = data?.impact?.energy || 'No data yet';
   const carbonVal = data?.impact?.carbon || 'No data yet';
   const waterVal = data?.impact?.water || 'No data yet';
+  const efficiencyRating = data?.efficiencyRating || (hasScore ? (targetScore >= 80 ? 'Optimal Compute Tier' : targetScore >= 50 ? 'Moderate Efficiency' : 'Low Efficiency') : 'No score yet');
 
   return (
     <div className="dash-card">
@@ -175,7 +179,7 @@ function GreenScoreCard({ data }) {
           </div>
           <div className="dash-score-meta">
             <span className={`dash-score-status ${!hasScore ? 'empty' : ''}`}>
-              {hasScore ? (data.efficiencyRating || 'Calculated score') : 'No score yet'}
+              {efficiencyRating}
             </span>
           </div>
         </div>
@@ -200,12 +204,15 @@ function GreenScoreCard({ data }) {
 }
 
 function AnalysisSummarySection({ data }) {
-  const hasEfficiency = data && data.originalTokens !== undefined && data.optimizedTokens !== undefined;
-  const hasTask = data && data.taskType;
-  const hasComplexity = data && data.complexity;
-  const hasModel = data && data.recommendedModel;
-  const hasScore = data && typeof data.greenScore === 'number';
-  const hasImpact = data && data.impact && data.impact.energy;
+  const originalTokens = data?.originalTokens ?? data?.tokensBefore;
+  const optimizedTokens = data?.optimizedTokens ?? data?.tokensAfter;
+  const reductionPercentage = data?.reductionPercentage ?? data?.tokenReductionPercentage ?? 0;
+  const hasEfficiency = data && originalTokens !== undefined && optimizedTokens !== undefined;
+  const hasTask = Boolean(data && data.taskType);
+  const hasComplexity = Boolean(data && data.complexity);
+  const hasModel = Boolean(data && data.recommendedModel);
+  const hasScore = Boolean(data && typeof data.greenScore === 'number');
+  const hasImpact = Boolean(data && data.impact && data.impact.energy);
 
   return (
     <section className="dash-summary-section">
@@ -215,7 +222,7 @@ function AnalysisSummarySection({ data }) {
           <span className="dash-summary-label">Prompt Efficiency</span>
           {hasEfficiency ? (
             <span className="dash-summary-value highlight">
-              {data.originalTokens} → {data.optimizedTokens} tokens ({data.reductionPercentage}% reduction)
+              {originalTokens} → {optimizedTokens} tokens ({reductionPercentage}% reduction)
             </span>
           ) : (
             <span className="dash-summary-value empty">No data yet</span>

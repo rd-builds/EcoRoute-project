@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { analyzePrompt } from '../api/backend';
+import { useAuth } from '../context/AuthContext';
 
 export default function AIWorkspace() {
+  const { saveAnalysis } = useAuth();
   const [prompt, setPrompt] = useState('');
   const [task, setTask] = useState('coding');
   const [currentAI, setCurrentAI] = useState('ChatGPT');
@@ -54,6 +56,20 @@ export default function AIWorkspace() {
         history: []
       });
       setAnalysisResult(data);
+
+      if (saveAnalysis) {
+        saveAnalysis({
+          ...data,
+          prompt: promptToUse,
+          taskType: data.taskType || taskToUse,
+          originalTokens: data.tokensBefore,
+          optimizedTokens: data.tokensAfter,
+          reductionPercentage: data.tokenReductionPercentage,
+          modelReasoning: data.reason,
+          efficiencyRating: data.greenScore >= 80 ? 'Optimal Compute Tier' : data.greenScore >= 50 ? 'Moderate Efficiency' : 'Low Efficiency',
+          timestamp: new Date().toISOString(),
+        });
+      }
     } catch (err) {
       console.error('Analysis error:', err);
       setError(err.message || 'Failed to connect to the backend server. Please ensure FastAPI is running on http://127.0.0.1:8000.');
