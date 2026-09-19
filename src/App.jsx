@@ -6,6 +6,7 @@ import Header from './components/Header';
 import Hero from './sections/Hero';
 import Trust from './sections/Trust';
 import Footer from './components/Footer';
+import AIWorkspace from './pages/AIWorkspace';
 
 function HomeView() {
   return (
@@ -35,6 +36,7 @@ function App() {
       <Header />
       <Routes>
         <Route path="/" element={<HomeView />} />
+        <Route path="/workspace" element={<AIWorkspace />} />
         <Route path="/how-it-works" element={<HomeView />} />
         <Route path="/extension" element={<HomeView />} />
         <Route path="/dashboard" element={<HomeView />} />
