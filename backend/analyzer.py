@@ -8,7 +8,7 @@ from typing import Optional, List
 # Import helper functions from GreenMind / EcoRoute modules
 from llm_client import query_llm
 from classifier import classify_task_type, evaluate_prompt_quality, evaluate_complexity, evaluate_ai_necessity
-from optimizer import query_ollama_optimizer
+from optimizer import query_ollama_optimizer, optimize_prompt_intelligently, sanitize_optimized_prompt
 from token_counter import calculate_token_savings
 from slop_detector import run_slop_detection, detect_ai_necessity
 from recommender import select_tier, _TIER_BY_NAME, build_reason
@@ -42,6 +42,10 @@ class SlopDetail(BaseModel):
     regenerationRisk: str
     reason: str
     suggestion: str
+    slopRiskExplanation: Optional[str] = None
+    repetitionRiskExplanation: Optional[str] = None
+    outputBloatExplanation: Optional[str] = None
+    regenerationRiskExplanation: Optional[str] = None
 
 
 class ImpactDetail(BaseModel):
@@ -51,7 +55,10 @@ class ImpactDetail(BaseModel):
 
 
 class AnalyzeResponse(BaseModel):
+    originalPrompt: Optional[str] = None
     optimizedPrompt: str
+    reasoning: Optional[str] = None
+    changes: Optional[List[str]] = []
     taskType: str
     complexity: str
     aiNecessity: AINecessityDetail
@@ -100,7 +107,10 @@ async def analyze_prompt_endpoint(request: AnalyzeRequest):
             carbon="low"
         )
         return AnalyzeResponse(
+            originalPrompt=prompt,
             optimizedPrompt=prompt,
+            reasoning="AI is not required for deterministic calculation or local formatting.",
+            changes=["Bypassed LLM inference; task can be solved deterministically."],
             taskType=task_type,
             complexity="low",
             aiNecessity=ai_necessity_detail,
@@ -115,7 +125,7 @@ async def analyze_prompt_endpoint(request: AnalyzeRequest):
             impact=impact_detail
         )
 
-    # 2. For AI_OPTIONAL and AI_REQUIRED: continue existing optimization pipeline
+    # 2. For AI_OPTIONAL and AI_REQUIRED: continue optimization pipeline
     quality_score, quality_breakdown = evaluate_prompt_quality(prompt, task_type)
     complexity = evaluate_complexity(prompt, task_type, quality_score)
 
@@ -130,8 +140,32 @@ async def analyze_prompt_endpoint(request: AnalyzeRequest):
         raise HTTPException(status_code=500, detail=f"Analysis pipeline error: {str(e)}")
 
     optimized_prompt = optimizer_res.get("optimizedPrompt", prompt)
+    reasoning = optimizer_res.get("reasoning", "")
+    changes = optimizer_res.get("changes", [])
+    needed_opt = optimizer_res.get("neededOptimization", True)
 
-    # 3. Calculate token metrics
+    if not isinstance(changes, list):
+        changes = [str(changes)] if changes else []
+
+    # Safeguard: if empty or leaked, fallback to deterministic optimizer
+    cleaned_opt, was_leaked = sanitize_optimized_prompt(prompt, optimized_prompt)
+    if was_leaked or not cleaned_opt:
+        fallback_res = optimize_prompt_intelligently(prompt, quality_score, task_type)
+        optimized_prompt = fallback_res.get("optimizedPrompt", prompt)
+        reasoning = fallback_res.get("reasoning", reasoning)
+        changes = fallback_res.get("changes", changes)
+        needed_opt = fallback_res.get("neededOptimization", True)
+    else:
+        optimized_prompt = cleaned_opt
+
+    # If prompt is identical to original, check if it genuinely needed no changes
+    if optimized_prompt.strip() == prompt.strip():
+        if not reasoning or "optimized" in reasoning.lower():
+            reasoning = "Prompt is already well-structured. Preserved original with no major changes needed."
+        if not changes:
+            changes = ["Prompt structure and constraints are already optimal."]
+
+    # 3. Calculate token metrics from the actual strings
     token_stats = calculate_token_savings(prompt, optimized_prompt)
 
     # 4. Generate model recommendation based on task type and complexity
@@ -170,7 +204,11 @@ async def analyze_prompt_endpoint(request: AnalyzeRequest):
         outputBloat=slop_res["outputBloat"],
         regenerationRisk=slop_res["regenerationRisk"],
         reason=slop_res["reason"],
-        suggestion=slop_res["suggestion"]
+        suggestion=slop_res["suggestion"],
+        slopRiskExplanation=slop_res.get("slopRiskExplanation"),
+        repetitionRiskExplanation=slop_res.get("repetitionRiskExplanation"),
+        outputBloatExplanation=slop_res.get("outputBloatExplanation"),
+        regenerationRiskExplanation=slop_res.get("regenerationRiskExplanation")
     )
 
     impact_detail = ImpactDetail(
@@ -180,7 +218,10 @@ async def analyze_prompt_endpoint(request: AnalyzeRequest):
     )
 
     return AnalyzeResponse(
+        originalPrompt=prompt,
         optimizedPrompt=optimized_prompt,
+        reasoning=reasoning,
+        changes=changes,
         taskType=task_type,
         complexity=complexity,
         aiNecessity=ai_necessity_detail,

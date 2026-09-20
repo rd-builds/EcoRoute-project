@@ -229,6 +229,63 @@ async def query_llm_for_narrative(
         }
 
 
+def analyze_prompt_deficiencies(prompt: str, scores: dict) -> tuple[str, str, dict]:
+    lower = prompt.lower().strip()
+    words = [w for w in re.findall(r'\b\w+\b', lower)]
+
+    has_audience = any(k in lower for k in ['beginner', 'student', 'high-school', 'expert', 'developer', 'manager', 'boss', 'professor', 'executive', 'child', 'kid', 'professional', 'audience', 'reader', 'team', 'user'])
+    has_format = any(k in lower for k in ['bullet', 'heading', 'table', 'step', 'summary', 'code', 'section', 'list', 'email', 'format', 'template', 'outline', 'points'])
+    has_constraint = any(k in lower for k in ['concise', 'short', 'brief', 'words', 'points', 'paragraph', 'page', 'sentences', 'max', 'limit', '5 key', 'examples', 'example'])
+
+    rep_risk = scores.get("repetitionRisk", "low")
+    bloat_risk = scores.get("outputBloat", "low")
+    regen_risk = scores.get("regenerationRisk", "low")
+    slop_risk = scores.get("risk", "low")
+
+    # Explanations for each signal item
+    slop_exp = "Likely to produce generic or repetitive output." if slop_risk in ("high", "medium") else "Low risk of generic or repetitive output."
+    rep_exp = "Request asks for multiple similar variations." if rep_risk in ("high", "medium") else "The prompt is specific enough to reduce repeated ideas."
+    bloat_exp = "Requests large volume of unconstrained text." if bloat_risk in ("high", "medium") else "The requested response has a clear scope."
+    regen_exp = "The prompt leaves some room for interpretation." if regen_risk in ("high", "medium") or not (has_audience and has_format) else "Clear context minimizes need for re-prompts."
+
+    explanations = {
+        "slopRiskExplanation": slop_exp,
+        "repetitionRiskExplanation": rep_exp,
+        "outputBloatExplanation": bloat_exp,
+        "regenerationRiskExplanation": regen_exp,
+    }
+
+    # Custom prompt-specific reason and suggestion
+    missing = []
+    if not has_audience:
+        missing.append("target audience")
+    if not has_format:
+        missing.append("desired format")
+    if not has_constraint:
+        missing.append("level of detail")
+
+    if rep_risk == "high":
+        reason = f"The prompt requests multiple similar output variations at once, which increases output repetition."
+        suggestion = "Focus on generating 1-2 strong primary options, then refine the best version."
+    elif bloat_risk == "high":
+        reason = f"The prompt requests an extensive output volume without specifying structured section boundaries."
+        suggestion = "Request a concise summary first, then expand individual sections in follow-ups."
+    elif len(missing) == 3:
+        reason = "The request doesn't specify a target audience, format, or level of detail."
+        suggestion = "Add a target audience, desired format (e.g., 5 concise bullet points), and specific requirements to make the output more focused."
+    elif len(missing) == 2:
+        reason = f"The request lacks a specific {missing[0]} and {missing[1]}."
+        suggestion = f"Add a {missing[0]} and {missing[1]} to make the response more focused and direct."
+    elif len(missing) == 1:
+        reason = f"The request doesn't specify a {missing[0]}."
+        suggestion = f"Specify a {missing[0]} (e.g. bullet points or target audience) to eliminate remaining ambiguity."
+    else:
+        reason = "The prompt specifies core requirements, but explicit section boundaries will prevent unnecessary AI bloat."
+        suggestion = "Add clear section headings or item limits for maximum output efficiency."
+
+    return reason, suggestion, explanations
+
+
 async def run_slop_detection(prompt: str, history: Optional[List[str]] = None, quality_score: float = 50.0) -> dict:
     history_list = history or []
     repetition_risk, rep_note  = detect_repetition_risk(prompt)
@@ -246,16 +303,9 @@ async def run_slop_detection(prompt: str, history: Optional[List[str]] = None, q
     }
 
     overall_risk = compute_aggregate_risk(scores)
-    rule_suggestion = build_rule_based_suggestion(repetition_risk, output_bloat, ai_necessity, regen_risk, ambiguity_risk, overall_risk)
+    scores["risk"] = overall_risk
 
-    if overall_risk == "low":
-        reason_text = "Prompt is well-scoped with no significant slop or unnecessary generation risks detected."
-        suggestion_text = rule_suggestion
-    else:
-        narrative = await query_llm_for_narrative(prompt, scores, rule_suggestion)
-        notes = list(filter(None, [amb_note, rep_note, blob_note, ai_note, reg_note]))
-        reason_text = narrative.get("reason", " | ".join(notes) if notes else "Potential generation risks detected.")
-        suggestion_text = rule_suggestion or narrative.get("suggestion", "Consider refining request parameters.")
+    reason_text, suggestion_text, explanations = analyze_prompt_deficiencies(prompt, scores)
 
     return {
         "risk": overall_risk,
@@ -265,6 +315,10 @@ async def run_slop_detection(prompt: str, history: Optional[List[str]] = None, q
         "regenerationRisk": regen_risk,
         "reason": reason_text,
         "suggestion": suggestion_text,
+        "slopRiskExplanation": explanations["slopRiskExplanation"],
+        "repetitionRiskExplanation": explanations["repetitionRiskExplanation"],
+        "outputBloatExplanation": explanations["outputBloatExplanation"],
+        "regenerationRiskExplanation": explanations["regenerationRiskExplanation"],
     }
 
 
@@ -272,3 +326,4 @@ async def run_slop_detection(prompt: str, history: Optional[List[str]] = None, q
 async def slop_detect_endpoint(request: SlopRequest):
     data = await run_slop_detection(request.prompt, request.history or [], request.qualityScore or 50.0)
     return SlopResponse(**data)
+
