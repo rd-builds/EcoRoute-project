@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { analyzePrompt } from '../api/backend';
 import { useAuth } from '../context/AuthContext';
+import EcoRouteAtmosphere from '../components/EcoRouteAtmosphere';
 
 export default function AIWorkspace() {
   const { saveAnalysis } = useAuth();
@@ -219,7 +220,9 @@ export default function AIWorkspace() {
   };
 
   return (
-    <div className="workspace-container">
+    <>
+      <EcoRouteAtmosphere variant="workspace" />
+      <div className="workspace-container">
       {/* Header */}
       <div className="workspace-header">
         <div className="workspace-tag">GreenMind Intelligence</div>
@@ -803,5 +806,6 @@ export default function AIWorkspace() {
         </div>
       )}
     </div>
+    </>
   );
 }

@@ -96,8 +96,10 @@ export function AuthProvider({ children }) {
     if (!data) return;
     try {
       const timestamp = data.timestamp || new Date().toISOString();
+      const id = data.id || `analysis_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       const enrichedData = {
         ...data,
+        id,
         timestamp,
       };
 
@@ -111,9 +113,9 @@ export function AuthProvider({ children }) {
         localStorage.setItem('ecoroute_analysis_guest', JSON.stringify(enrichedData));
       }
 
-      // 3. Update history log (retaining up to 50 previous analyses)
+      // 3. Update history log (retaining up to 500 previous analyses)
       const existingHistory = JSON.parse(localStorage.getItem('ecoroute_analysis_history') || '[]');
-      const updatedHistory = [enrichedData, ...existingHistory.filter(item => item.timestamp !== timestamp)].slice(0, 50);
+      const updatedHistory = [enrichedData, ...existingHistory.filter(item => item.id ? item.id !== id : item.timestamp !== timestamp)].slice(0, 500);
       localStorage.setItem('ecoroute_analysis_history', JSON.stringify(updatedHistory));
 
       setAnalysisData(enrichedData);
@@ -162,3 +164,4 @@ export function useAuth() {
   }
   return context;
 }
+

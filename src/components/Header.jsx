@@ -32,6 +32,7 @@ export default function Header() {
         </div>
         <ul className="nav-links">
           <li><NavLink to="/" end>Home</NavLink></li>
+          <li><NavLink to="/workspace">Workspace</NavLink></li>
           <li><NavLink to="/think-before-ai">Think Before AI</NavLink></li>
           <li><NavLink to="/how-it-works">How it works</NavLink></li>
           <li><NavLink to="/extension">Extension</NavLink></li>

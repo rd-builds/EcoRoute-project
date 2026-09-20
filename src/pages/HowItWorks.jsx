@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
+import EcoRouteAtmosphere from '../components/EcoRouteAtmosphere';
 import './HowItWorks.css';
 
 export default function HowItWorks() {
@@ -67,6 +68,7 @@ export default function HowItWorks() {
 
   return (
     <div className="hiw-page">
+      <EcoRouteAtmosphere variant="section" />
       <div className="hiw-container">
         
         {/* 1. HERO */}

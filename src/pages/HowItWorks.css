@@ -313,18 +313,21 @@
 
 /* Glass Card Base */
 .hiw-card {
-  background: rgba(10, 13, 6, 0.85);
-  border: 1px solid var(--line);
-  padding: 22px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  padding: 24px;
   position: relative;
   box-shadow: 0 14px 35px rgba(0, 0, 0, 0.4);
   transition: border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .hiw-card:hover {
-  border-color: rgba(200, 255, 77, 0.3);
+  border-color: rgba(184, 255, 50, 0.3);
   transform: translateY(-2px);
-  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.6), 0 0 20px rgba(200, 255, 77, 0.05);
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.6), 0 0 25px rgba(53, 216, 120, 0.08);
 }
 
 /* STAGE 01: Prompt Draft Box */

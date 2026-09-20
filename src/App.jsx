@@ -13,6 +13,7 @@ import Dashboard from './pages/Dashboard';
 import SignIn from './pages/SignIn';
 import ThinkBeforeAI from './pages/ThinkBeforeAI';
 import { AuthProvider } from './context/AuthContext';
+import EcoRouteAtmosphere from './components/EcoRouteAtmosphere';
 
 function HomeView() {
   return (
@@ -38,6 +39,7 @@ function App() {
     <AuthProvider>
       <DotPointer />
       {loading && <Loader onComplete={() => setLoading(false)} />}
+      <EcoRouteAtmosphere variant="full" />
       
       <Header />
       <main className="main-content">
