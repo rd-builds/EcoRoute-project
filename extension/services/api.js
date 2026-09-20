@@ -1,5 +1,5 @@
 (function (global) {
-  var API_BASE = "http://127.0.0.1:8000";
+  var API_BASE = "https://ecoroute-project-1.onrender.com";
   var TIMEOUT_MS = 120000;
 
   function makeError(message, kind) {
