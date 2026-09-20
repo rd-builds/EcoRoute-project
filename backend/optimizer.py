@@ -3,8 +3,9 @@ import re
 import json
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict, Any
 from llm_client import query_llm
+from token_counter import calculate_token_savings
 
 router = APIRouter()
 
@@ -16,13 +17,47 @@ class OptimizeRequest(BaseModel):
 
 
 class OptimizeResponse(BaseModel):
+    originalPrompt: Optional[str] = None
     optimizedPrompt: str
-    changes: List[str]
+    reasoning: Optional[str] = None
+    changes: List[str] = []
+    neededOptimization: Optional[bool] = True
+    tokensBefore: Optional[int] = None
+    tokensAfter: Optional[int] = None
+    tokenReduction: Optional[int] = None
+    tokenReductionPercentage: Optional[float] = None
 
 
 _LEAKED_INSTRUCTION_MARKERS = [
     "system prompt", "internal rules", "guidance for rewriting",
-    "optimizedprompt", "return it unchanged", "you are greenmind"
+    "optimizedprompt", "return it unchanged", "you are greenmind",
+    "you are ecoroute"
+]
+
+FILLER_PATTERNS = [
+    r'^(?:could|can|would|will)\s+you\s+(?:please\s+)?(?:kindly\s+)?(?:help\s+me\s+)?(?:to\s+)?',
+    r'^(?:please|kindly)\s+',
+    r'^(?:i\s+(?:was\s+wondering\s+if\s+you\s+could|would\s+like\s+you\s+to|want\s+you\s+to|need\s+you\s+to|am\s+asking\s+you\s+to|was\s+hoping\s+you\s+could|am\s+hoping\s+you\s+could))\s+',
+    r'^(?:just\s+wanted\s+to\s+ask|i\s+would\s+like\s+to\s+ask)\s+',
+    r'^(?:hello|hi|hey)\s*,?\s*',
+]
+
+TAIL_FILLER_PATTERNS = [
+    r'\s+(?:thank\s+you|thanks(?:\s+a\s+lot|\s+in\s+advance|\s+so\s+much)?|and\s+for\s+your\s+help)[.!\s]*$',
+    r'\s+(?:please\s+let\s+me\s+know)[.!\s]*$',
+]
+
+WORDY_REPLACEMENTS = [
+    (r'\bin order to\b', 'to'),
+    (r'\bdue to the fact that\b', 'because'),
+    (r'\bat this point in time\b', 'now'),
+    (r'\bat all times\b', 'always'),
+    (r'\bin the event that\b', 'if'),
+    (r'\bfor the purpose of\b', 'for'),
+    (r'\ba lot of\b', 'many'),
+    (r'\bmake sure that\b', 'ensure'),
+    (r'\bit is important to note that\b', ''),
+    (r'\bas a matter of fact\b', ''),
 ]
 
 
@@ -43,178 +78,290 @@ def sanitize_optimized_prompt(original_prompt: str, optimized_prompt: str) -> Tu
             return original_prompt, True
 
     # Detect suspicious length expansion (unreasonably massive)
-    if len(optimized_prompt) > max(len(original_prompt) * 5.0, len(original_prompt) + 500):
+    if len(optimized_prompt) > max(len(original_prompt) * 5.0, len(original_prompt) + 600):
         return original_prompt, True
 
     return optimized_prompt.strip(), False
 
 
-def clean_filler(text: str) -> str:
-    """Removes conversational filler, polite preambles, and low-value leading phrases."""
+def clean_conversational_filler(text: str) -> Tuple[str, bool]:
+    """Removes conversational filler, polite preambles, and low-value wordy phrases."""
     cleaned = text.strip()
-    filler_patterns = [
-        r'^(?:could|can|would|will)\s+you\s+(?:please\s+)?(?:kindly\s+)?(?:help\s+me\s+)?(?:to\s+)?',
-        r'^(?:please|kindly)\s+',
-        r'^(?:i\s+(?:was\s+wondering\s+if\s+you\s+could|would\s+like\s+you\s+to|want\s+you\s+to|need\s+you\s+to|am\s+asking\s+you\s+to|was\s+hoping\s+you\s+could))\s+',
-        r'^(?:tell\s+me\s+about|give\s+me\s+info(?:rmation)?\s+on|i\s+need\s+to\s+know\s+about|give\s+me\s+a\s+summary\s+of)\s+',
-        r'^(?:write|draft)\s+a?\s*(?:quick|short|simple)?\s*',
-    ]
-    for pattern in filler_patterns:
-        cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE).strip()
-    return cleaned if cleaned else text
+    changed = False
+
+    for pattern in FILLER_PATTERNS:
+        new_cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE).strip()
+        if new_cleaned != cleaned:
+            cleaned = new_cleaned
+            changed = True
+
+    for pattern in TAIL_FILLER_PATTERNS:
+        new_cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE).strip()
+        if new_cleaned != cleaned:
+            cleaned = new_cleaned
+            changed = True
+
+    for pattern, repl in WORDY_REPLACEMENTS:
+        new_cleaned = re.sub(pattern, repl, cleaned, flags=re.IGNORECASE).strip()
+        if new_cleaned != cleaned:
+            cleaned = new_cleaned
+            changed = True
+
+    # Clean up punctuation spacing
+    cleaned = re.sub(r'\s+', ' ', cleaned)
+    cleaned = re.sub(r'\s*,\s*', ', ', cleaned)
+    cleaned = re.sub(r'^[,\s;:]+', '', cleaned).strip()
+
+    if cleaned and not cleaned[0].isupper() and cleaned[0].isalpha():
+        cleaned = cleaned[0].upper() + cleaned[1:]
+
+    return cleaned, changed
 
 
-def optimize_prompt_intelligently(prompt: str, quality_score: float = 50.0, task_type: str = 'other') -> Tuple[str, List[str]]:
+def is_already_well_structured(prompt: str) -> bool:
     """
-    Intelligently optimizes prompts dynamically for any input:
-    - Removes conversational filler, preambles, and redundant phrasing.
-    - Adds explicit structural guidelines (sections, headings, bullet points).
-    - Specifies output formatting, context requirements, and actionable scope.
-    - Works dynamically across question/research, writing/communication, analysis, coding, and general tasks.
+    Determines if a prompt is already well-structured and concise,
+    meaning no major optimization or rewriting should be forced.
+    """
+    raw = prompt.strip()
+    lines = [l.strip() for l in raw.splitlines() if l.strip()]
+
+    # Check for markdown structure or bullet points
+    has_headers = any(l.startswith('#') or (l.endswith(':') and len(l.split()) <= 4) for l in lines)
+    has_bullets = any(re.match(r'^(?:[-*•]|\d+\.)\s+', l) for l in lines)
+
+    words = re.findall(r'\b\w+\b', raw)
+    if len(words) < 15:
+        return False
+
+    _, had_filler = clean_conversational_filler(raw)
+
+    sentences = [s.strip().lower() for s in re.split(r'[.!?\n]+', raw) if len(s.strip().split()) >= 4]
+    has_duplicates = len(sentences) != len(set(sentences))
+
+    if (has_headers or has_bullets) and not had_filler and not has_duplicates:
+        return True
+
+    return False
+
+
+def consolidate_repetitive_prompt(text: str) -> Tuple[str, List[str]]:
+    """
+    Consolidates repetitive, wordy prompts into a clean, structured set of requirements.
+    Preserves all unique context, variables, code, domain facts, and constraints.
+    """
+    cleaned, _ = clean_conversational_filler(text)
+    changes = []
+
+    raw_sentences = [s.strip() for s in re.split(r'(?<=[.!?\n])\s+', cleaned) if s.strip()]
+    if not raw_sentences:
+        return cleaned, changes
+
+    processed_sentences = []
+    seen_normalized = set()
+    seen_topics = set()
+
+    for sent in raw_sentences:
+        sent_clean, _ = clean_conversational_filler(sent)
+        norm = re.sub(r'[^a-zA-Z0-9]', '', sent_clean.lower())
+        if not norm:
+            continue
+        if norm in seen_normalized:
+            changes.append(f"Removed exact duplicate instruction: '{sent[:40]}...'")
+            continue
+        seen_normalized.add(norm)
+
+        sent_lower = sent_clean.lower()
+
+        # Check repeated programming language declarations
+        if re.search(r'\b(?:use|in|write it in|ensure you use)\s+(?:python|javascript|typescript|java|c\+\+|rust|go|sql)\b', sent_lower):
+            if 'lang_spec' in seen_topics:
+                changes.append("Consolidated redundant programming language requirement")
+                continue
+            seen_topics.add('lang_spec')
+
+        # Check repeated error handling declarations
+        if re.search(r'\b(?:handle errors|error handling|error-handling|exception handling)\b', sent_lower):
+            if 'error_handling' in seen_topics:
+                changes.append("Consolidated repeated error handling instruction")
+                continue
+            seen_topics.add('error_handling')
+
+        # Check repeated documentation/commenting declarations
+        if re.search(r'\b(?:include comments|well documented|clean comments|docstrings)\b', sent_lower):
+            if 'comments' in seen_topics:
+                changes.append("Consolidated repeated commenting / documentation requirement")
+                continue
+            seen_topics.add('comments')
+
+        # Check repeated tone declarations
+        if re.search(r'\b(?:tone is professional|make sure.*professional|clean and professional|formal tone)\b', sent_lower):
+            if 'tone_professional' in seen_topics:
+                changes.append("Consolidated duplicate professional tone instruction")
+                continue
+            seen_topics.add('tone_professional')
+
+        processed_sentences.append(sent_clean)
+
+    # Format result if heavily repetitive
+    if len(processed_sentences) > 3 and len(changes) >= 2:
+        task_sentence = processed_sentences[0]
+        other_requirements = processed_sentences[1:]
+        bullet_items = "\n".join([f"- {s.rstrip('.')}." for s in other_requirements])
+        result = f"{task_sentence}\n\nRequirements:\n{bullet_items}"
+        changes.append("Structured repetitive instructions into clean bulleted requirements")
+    else:
+        result = " ".join(processed_sentences)
+
+    return result, changes
+
+
+def optimize_prompt_intelligently(prompt: str, quality_score: float = 50.0, task_type: str = 'other') -> Dict[str, Any]:
+    """
+    Intelligently optimizes prompts deterministically when LLM is offline or prompt needs rule-based refinement:
+    - For SHORT prompts: Adds missing structure/specificity (e.g. bullet points, concise scope) without arbitrary requirements.
+    - For LARGE/REPETITIVE prompts: Deduplicates instructions, consolidates redundant requirements, removes conversational filler, and organizes structure while preserving all context.
+    - For WELL-STRUCTURED prompts: Preserves the prompt intact without forcing artificial changes.
     """
     raw = prompt.strip()
     if not raw:
-        return raw, []
+        return {
+            "optimizedPrompt": raw,
+            "reasoning": "Prompt is empty.",
+            "changes": [],
+            "neededOptimization": False
+        }
 
-    lower = raw.lower()
-    changes = []
+    words = re.findall(r'\b\w+\b', raw)
+    word_count = len(words)
 
-    # 1. Clean conversational filler & polite preambles
-    cleaned = clean_filler(raw)
-    if cleaned != raw and len(cleaned) > 3:
-        changes.append("Removed conversational filler and polite preambles")
-        work_text = cleaned
-    else:
-        work_text = raw
+    # 1. Well-structured / already optimal prompt
+    if is_already_well_structured(raw):
+        return {
+            "optimizedPrompt": raw,
+            "reasoning": "Prompt is already well-structured. Preserved original with no major changes needed.",
+            "changes": ["Prompt structure, constraints, and scope are already optimal."],
+            "neededOptimization": False
+        }
 
-    work_lower = work_text.lower()
-
-    # Determine core subject/topic by stripping leading prepositional filler
-    topic = re.sub(r'^(?:about|on|regarding|for|the|a|an)\s+', '', work_text, flags=re.IGNORECASE).strip()
-    if not topic:
-        topic = work_text
-
-    # 2. Archetype / Task Intent Classification & Optimization
-
-    # Archetype A: Email / Writing / Communication Requests
-    if task_type == 'writing' or any(k in work_lower for k in ['email', 'letter', 'memo', 'cover letter', 'essay', 'draft', 'rewrite', 'message to', 'manager', 'boss', 'professor', 'dean', 'pto', 'absence']):
-        recipient = '[Recipient]'
-        if 'manager' in work_lower or 'boss' in work_lower:
-            recipient = 'my manager'
-        elif 'professor' in work_lower:
-            recipient = 'my professor'
-        elif 'dean' in work_lower:
-            recipient = 'the dean'
-
-        subject_hint = work_text
-        subject_hint = re.sub(r'^(?:write|draft)\s+', '', subject_hint, flags=re.IGNORECASE).strip()
-        subject_hint = re.sub(r'^(?:an?\s+)?(?:email|letter|memo|note|message)\s+', '', subject_hint, flags=re.IGNORECASE).strip()
-        subject_hint = re.sub(r'^(?:to\s+)?(?:my\s+)?(?:manager|boss|professor|dean)\s+', '', subject_hint, flags=re.IGNORECASE).strip()
-        subject_hint = re.sub(r'^(?:about|regarding|asking\s+for|for)\s+', '', subject_hint, flags=re.IGNORECASE).strip()
-        if not subject_hint or len(subject_hint) < 2:
-            subject_hint = 'the requested topic'
-
-        optimized = (
-            f"Write a professional, concise email to {recipient} regarding {subject_hint}. "
-            "Structure the response with a clear subject line, a respectful opening, logical body paragraphs detailing the main points and context, "
-            "a polite call to action, and a formal sign-off. Use explicit placeholders like [Dates/Details] where specific information is required."
-        )
-        changes.append("Structured email request with professional tone, explicit placeholders, and section guidelines")
-        return optimized, changes
-
-    # Archetype B: Educational / Explanatory / Topic Query (e.g. "tell me about climate change")
-    if task_type in ['education', 'summarization'] or any(k in work_lower for k in ['climate change', 'tell me about', 'explain', 'what is', 'how does', 'teach', 'overview', 'concept', 'history of', 'background of', 'understanding']):
-        clean_topic = re.sub(r'^(?:tell\s+me\s+about|explain|what\s+is|how\s+does|teach\s+me\s+about|give\s+me\s+an?\s+overview\s+of)\s+', '', work_text, flags=re.IGNORECASE).strip()
+    # 2. Short / Vague prompt handling
+    if word_count <= 8 and not any(c in raw for c in ['\n', '-', '*', ':']):
+        clean_topic, _ = clean_conversational_filler(raw)
+        clean_topic = clean_topic.rstrip('.!? ')
+        clean_topic = re.sub(r'^(?:about|on|regarding|for|the|a|an)\s+', '', clean_topic, flags=re.IGNORECASE).strip()
+        clean_topic = re.sub(r'^(?:tell\s+me\s+about|give\s+me\s+info\s+on|explain|what\s+is|how\s+does|teach\s+me\s+about|describe)\s+', '', clean_topic, flags=re.IGNORECASE).strip()
         if not clean_topic:
-            clean_topic = topic
+            clean_topic = raw.rstrip('.!? ')
 
-        optimized = (
-            f"Explain {clean_topic} in clear, concise language. "
-            "Structure the response with headings covering: 1) Core Definition & Background, 2) Key Causes & Mechanisms, "
-            "3) Major Effects & Current Challenges, and 4) 5 Key Bulleted Takeaways. Suitable for a clear, comprehensive overview."
-        )
-        changes.append("Transformed vague topic query into structured explanation with clear headings and bulleted takeaways")
-        return optimized, changes
-
-    # Archetype C: Analysis / Research / Data Extraction Requests (e.g. "Analyze customer reviews")
-    if task_type == 'research' or any(k in work_lower for k in ['analyze', 'analysis', 'review', 'complaint', 'reviews', 'complaints', 'feedback', 'compare', 'evaluation', 'benchmark', 'themes', 'trends']):
-        target_subject = re.sub(r'^(?:analyze|evaluate|review|compare)\s+(?:these|the|this)?\s*', '', work_text, flags=re.IGNORECASE).strip()
-        target_subject = re.sub(r'\s+(?:and|to)\s+(?:identify|find|extract|discover).*$', '', target_subject, flags=re.IGNORECASE).strip()
-        if not target_subject:
-            target_subject = work_text
-
-        optimized = (
-            f"Analyze {target_subject} to identify recurring themes, core patterns, and actionable insights. "
-            "Structure the output into: 1) Executive Summary, 2) Key Categorized Findings with Frequency/Severity, "
-            "3) Representative Excerpts, and 4) Strategic Recommendations formatted with bullet points."
-        )
-        changes.append("Structured analysis request into executive summary, categorized findings, and strategic recommendations")
-        return optimized, changes
-
-    # Archetype D: Coding / Engineering Implementation
-    if task_type == 'coding' or any(k in work_lower for k in ['code', 'program', 'debug', 'function', 'class', 'algorithm', 'script', 'react', 'python', 'java', 'js', 'javascript', 'typescript', 'sql', 'hook', 'api']):
-        if any(k in work_lower for k in ['debug', 'fix', 'error', 'stacktrace', 'bug']):
-            optimized = (
-                f"Debug the following technical issue with {work_text}: [Paste code/stacktrace here]. "
-                "1) Identify the root cause, 2) Provide the corrected production-ready code snippet, and 3) List best practices to prevent similar errors."
-            )
-            changes.append("Structured debugging prompt with root-cause analysis, corrected code block, and best practices")
+        lower_raw = raw.lower()
+        if any(k in lower_raw for k in ['email', 'letter', 'memo', 'message to', 'manager', 'boss', 'leave', 'pto']):
+            optimized = f"Write a concise, professional email regarding {clean_topic}. Include context, key request details, and clear next steps."
+            reasoning = "Added essential email structure (context, key details, next steps) and concise formatting."
+            changes = ["Added clear email structural guidelines", "Specified concise professional tone"]
+        elif any(k in lower_raw for k in ['code', 'python', 'java', 'react', 'function', 'class', 'algorithm', 'binary search', 'sql', 'debug', 'script']):
+            optimized = f"Implement a clean, robust solution for {clean_topic}. Include modular code, concise comments, and time/space complexity analysis."
+            reasoning = "Added implementation requirements, code quality standards, and complexity analysis."
+            changes = ["Added modular code and commenting requirements", "Specified complexity analysis"]
+        elif any(k in lower_raw for k in ['analyze', 'analysis', 'review', 'complaint', 'feedback', 'compare']):
+            optimized = f"Analyze {clean_topic} to identify core themes, key findings, and 3 actionable recommendations."
+            reasoning = "Added clear analysis structure with core themes, key findings, and actionable recommendations."
+            changes = ["Structured analysis into key findings and actionable recommendations"]
         else:
-            optimized = (
-                f"Implement a clean, robust, production-ready solution for: {work_text}. "
-                "Include modular code with concise comments, proper error handling, edge case considerations, and a brief explanation of time and space complexity."
-            )
-            changes.append("Added production requirements, edge case handling, and complexity analysis")
-        return optimized, changes
+            optimized = f"Explain {clean_topic} in 5 concise bullet points, covering its main causes, effects, and one real-world example. Use simple language."
+            reasoning = "Structured topic into concise bullet points with cause/effect/example scope to prevent vague generation."
+            changes = ["Structured request into 5 concise bullet points", "Added cause, effect, and real-world example scope"]
 
-    # Archetype E: Brainstorming / Idea Generation
-    if task_type == 'brainstorming' or any(k in work_lower for k in ['brainstorm', 'ideas', 'suggestions', 'creative', 'names', 'strategies']):
-        optimized = (
-            f"Generate 5-10 distinct, highly creative, and actionable ideas for {work_text}. "
-            "For each idea, include: a catchy title, a 2-sentence concept summary, key benefits, and practical implementation steps."
-        )
-        changes.append("Structured brainstorming prompt into distinct ideas with summary, benefits, and execution steps")
-        return optimized, changes
+        return {
+            "optimizedPrompt": optimized,
+            "reasoning": reasoning,
+            "changes": changes,
+            "neededOptimization": True
+        }
 
-    # Archetype F: General Fallback for arbitrary prompts
-    optimized = (
-        f"{work_text[0].upper() + work_text[1:] if work_text else raw}. "
-        "Provide a clear, well-structured response with key headings, concise explanation, and bulleted takeaways."
-    )
-    changes.append("Added structural clarity, section headings, and bulleted output requirements")
-    return optimized, changes
+    # 3. Medium or Large Prompts: Deduplicate, Consolidate & Clean Filler
+    cleaned_filler, had_filler = clean_conversational_filler(raw)
+    consolidated, dedup_changes = consolidate_repetitive_prompt(raw)
+
+    changes = []
+    if had_filler:
+        changes.append("Removed conversational filler and polite preambles")
+    changes.extend([c for c in dedup_changes if c not in changes])
+
+    # If no changes were made or needed
+    if consolidated.strip() == raw.strip() or (not changes and len(consolidated) >= len(raw) * 0.95):
+        return {
+            "optimizedPrompt": raw,
+            "reasoning": "Prompt is already well-structured. Preserved original with no major changes needed.",
+            "changes": ["Preserved prompt structure and constraints without unnecessary modifications."],
+            "neededOptimization": False
+        }
+
+    reasoning_parts = []
+    if any("duplicate" in c.lower() or "consolidated" in c.lower() for c in changes):
+        reasoning_parts.append("consolidated duplicate requirements")
+    if had_filler:
+        reasoning_parts.append("removed conversational filler")
+    if any("structured" in c.lower() for c in changes):
+        reasoning_parts.append("organized into structured requirements")
+    if not reasoning_parts:
+        reasoning_parts.append("streamlined instruction clarity")
+
+    reasoning = f"Optimized prompt: {', '.join(reasoning_parts).capitalize()} while preserving all original context and constraints."
+
+    return {
+        "optimizedPrompt": consolidated,
+        "reasoning": reasoning,
+        "changes": changes if changes else ["Cleaned phrasing and preserved all core constraints."],
+        "neededOptimization": True
+    }
 
 
 async def query_ollama_optimizer(prompt: str, quality_score: float = 50.0, task_type: str = 'other') -> dict:
+    """
+    Optimizes a user prompt using the configured LLM client with intelligent fallback.
+    Enforces core optimization principles:
+    - Preserves user intent, domain facts, code, and necessary context.
+    - Does NOT rewrite/paraphrase for the sake of rewriting.
+    - Deduplicates requirements and removes filler for large prompts.
+    - Adds structure and specificity for short vague prompts.
+    - Preserves already well-structured prompts without artificial changes.
+    """
     prompt_template = (
-        "You are GreenMind's Expert Prompt Optimizer. Your task is to refine the user's prompt into an optimized, highly effective LLM prompt.\n\n"
+        "You are EcoRoute's Expert Prompt Optimization Engine.\n"
+        "Your task is to optimize the user's prompt to maximize instruction clarity, structural precision, and compute efficiency WITHOUT simply paraphrasing or rewriting the text.\n\n"
         "OPTIMIZATION RULES:\n"
-        "1. Remove conversational filler and polite preambles (e.g. 'could you please', 'tell me about').\n"
-        "2. Add clear structural requirements (e.g. headings, bullet points, executive summary, sections).\n"
-        "3. Specify output style, target audience, context, and explicit placeholders like [Details] when needed.\n"
-        "4. Do NOT fabricate unstated facts. Preserve the user's core intent while maximizing prompt quality and clarity.\n\n"
-        "Respond ONLY with a single valid JSON object:\n"
+        "1. PRESERVE INTENT & CRITICAL CONTEXT: Retain the user's core goal, domain facts, technical constraints, variables, code snippets, and data. Do NOT delete necessary information just to make the prompt shorter.\n"
+        "2. DO NOT PARAPHRASE: Meaningfully modify the prompt ONLY when there is something genuine to improve. If an instruction is already clear and concise, keep it.\n"
+        "3. FOR SHORT PROMPTS (e.g. 'Tell me about climate change.'): Identify missing structure or specificity. Add concise scoping (e.g., 5 concise bullet points covering causes, effects, and one real-world example) without arbitrary unneeded requirements.\n"
+        "4. FOR LARGE / REPETITIVE PROMPTS: Consolidate duplicate requirements, remove polite conversational filler ('could you please', 'I was wondering if...'), eliminate conflicting instructions, and structure cleanly with headings or bullet points while keeping all necessary information intact.\n"
+        "5. FOR WELL-STRUCTURED PROMPTS: If the prompt is already clear, well-structured, and contains no fluff or repetition, preserve it as-is and explain that it was already well-structured.\n\n"
+        "Respond ONLY with a single valid raw JSON object:\n"
         "{\n"
-        '  "optimizedPrompt": "the refined, highly structured prompt",\n'
-        '  "changes": ["description of improvement 1", "description of improvement 2"]\n'
+        '  "optimizedPrompt": "the optimized prompt text (or original if already optimal)",\n'
+        '  "reasoning": "A concise 1-2 sentence explanation of why changes were made or why prompt was preserved (e.g., \'Removed repeated requirements, consolidated formatting instructions, and converted request into structured task.\' or \'Prompt is already well-structured. Preserved original with no major changes needed.\')",\n'
+        '  "changes": ["description of improvement 1", "description of improvement 2"],\n'
+        '  "neededOptimization": true\n'
         "}\n\n"
-        f"User Prompt to Optimize: {prompt}"
+        f"User Prompt to Optimize:\n{prompt}"
     )
 
     try:
         raw_text = await query_llm(prompt_template)
         data = json.loads(raw_text)
-        if data.get("optimizedPrompt") and data.get("optimizedPrompt").strip() != prompt.strip():
-            return data
+        if isinstance(data, dict) and data.get("optimizedPrompt"):
+            cleaned_opt, was_leaked = sanitize_optimized_prompt(prompt, data["optimizedPrompt"])
+            if not was_leaked:
+                data["optimizedPrompt"] = cleaned_opt
+                if not data.get("reasoning"):
+                    data["reasoning"] = "Optimized prompt for instruction clarity and compute efficiency."
+                if not isinstance(data.get("changes"), list):
+                    data["changes"] = [str(data.get("changes"))] if data.get("changes") else []
+                return data
     except Exception:
         pass
 
-    # Deterministic intelligent fallback optimizer
-    opt_text, changes = optimize_prompt_intelligently(prompt, quality_score, task_type)
-    return {
-        "optimizedPrompt": opt_text,
-        "changes": changes
-    }
+    # Deterministic fallback optimizer
+    return optimize_prompt_intelligently(prompt, quality_score, task_type)
 
 
 @router.post("/optimize", response_model=OptimizeResponse)
@@ -222,7 +369,7 @@ async def optimize_prompt_endpoint(request: OptimizeRequest):
     original = request.prompt
     task = request.task or 'other'
     quality = request.qualityScore or 50.0
-    
+
     result = await query_ollama_optimizer(original, quality, task)
 
     raw_optimized = result.get("optimizedPrompt", original)
@@ -230,13 +377,37 @@ async def optimize_prompt_endpoint(request: OptimizeRequest):
 
     changes = result.get("changes", [])
     if not isinstance(changes, list):
-        changes = [str(changes)]
+        changes = [str(changes)] if changes else []
 
-    if was_leaked or cleaned_prompt.strip() == original.strip():
-        cleaned_prompt, changes = optimize_prompt_intelligently(original, quality, task)
+    reasoning = result.get("reasoning", "")
+    needed_opt = result.get("neededOptimization", True)
+
+    # Safeguard: if leaked or empty, run fallback
+    if was_leaked or not cleaned_prompt:
+        fallback_res = optimize_prompt_intelligently(original, quality, task)
+        cleaned_prompt = fallback_res.get("optimizedPrompt", original)
+        changes = fallback_res.get("changes", [])
+        reasoning = fallback_res.get("reasoning", reasoning)
+        needed_opt = fallback_res.get("neededOptimization", True)
+
+    # If prompt is identical to original, check if it genuinely needed no changes
+    if cleaned_prompt.strip() == original.strip():
+        if not reasoning or "optimized" in reasoning.lower():
+            reasoning = "Prompt is already well-structured. Preserved original with no major changes needed."
+        needed_opt = False
+        if not changes:
+            changes = ["Prompt structure and constraints are already optimal."]
+
+    token_stats = calculate_token_savings(original, cleaned_prompt)
 
     return OptimizeResponse(
+        originalPrompt=original,
         optimizedPrompt=cleaned_prompt,
-        changes=changes
+        reasoning=reasoning,
+        changes=changes,
+        neededOptimization=needed_opt,
+        tokensBefore=token_stats["tokensBefore"],
+        tokensAfter=token_stats["tokensAfter"],
+        tokenReduction=token_stats["tokenReduction"],
+        tokenReductionPercentage=token_stats["tokenReductionPercentage"]
     )
-
