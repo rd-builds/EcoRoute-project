@@ -182,6 +182,17 @@ export default function AIWorkspace() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleImproveBeforeGenerating = () => {
+    if (!analysisResult?.optimizedPrompt) return;
+    setWasVoiceUsed(false);
+    setPrompt(analysisResult.optimizedPrompt);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => {
+      const textarea = document.querySelector('.prompt-textarea');
+      if (textarea) textarea.focus();
+    }, 300);
+  };
+
   const selectSamplePrompt = (sample) => {
     setWasVoiceUsed(false);
     setPrompt(sample.text);
@@ -592,39 +603,92 @@ export default function AIWorkspace() {
             </div>
           )}
 
-          {/* 2. Existing Optimized Prompt */}
+          {/* 2. Prompt Optimization & Comparison Engine */}
           <div className="workspace-card prompt-opt-card full-width">
             <div className="card-header space-between">
               <div>
-                <span className="card-tag">02 / PROMPT REFINEMENT</span>
-                <h3>Optimized Prompt</h3>
+                <span className="card-tag">02 / PROMPT OPTIMIZATION</span>
+                <h3>Prompt Optimization Engine</h3>
               </div>
-              <button
-                onClick={handleCopyPrompt}
-                className={`btn-copy ${copied ? 'copied' : ''}`}
-              >
-                {copied ? (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                    </svg>
-                    Copy Optimized Prompt
-                  </>
-                )}
-              </button>
+              <div className="prompt-opt-header-actions">
+                <button
+                  onClick={handleCopyPrompt}
+                  className={`btn-copy ${copied ? 'copied' : ''}`}
+                >
+                  {copied ? (
+                    <>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                      </svg>
+                      Copy Optimized Prompt
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
-            <div className="optimized-box">
-              <code>{analysisResult.optimizedPrompt}</code>
+            {/* Optimization Strategy & Reasoning */}
+            <div className="opt-reasoning-banner">
+              <div className="opt-reasoning-header">
+                <span className="opt-reasoning-icon">💡</span>
+                <span className="opt-reasoning-title">Optimization Strategy:</span>
+                <span className={`opt-status-badge ${analysisResult.optimizedPrompt.trim() === (analysisResult.originalPrompt || prompt).trim() ? 'status-preserved' : 'status-optimized'}`}>
+                  {analysisResult.optimizedPrompt.trim() === (analysisResult.originalPrompt || prompt).trim()
+                    ? 'Preserved (Already Well-Structured)'
+                    : analysisResult.tokenReductionPercentage > 0
+                    ? `Token Savings: ${analysisResult.tokenReductionPercentage}%`
+                    : 'Structure & Scope Added'}
+                </span>
+              </div>
+              <p className="opt-reasoning-text">
+                {analysisResult.reasoning || "Optimized prompt for instruction clarity and compute efficiency while preserving core intent."}
+              </p>
             </div>
+
+            {/* Comparison Grid */}
+            <div className="prompt-comparison-grid">
+              {/* Original Prompt */}
+              <div className="prompt-compare-col">
+                <div className="compare-col-header">
+                  <span className="compare-col-title">Original Prompt</span>
+                  <span className="compare-token-pill">{analysisResult.tokensBefore} tokens</span>
+                </div>
+                <div className="compare-content-box original-box">
+                  <code>{analysisResult.originalPrompt || prompt}</code>
+                </div>
+              </div>
+
+              {/* Optimized Prompt */}
+              <div className="prompt-compare-col">
+                <div className="compare-col-header">
+                  <span className="compare-col-title">Optimized Prompt</span>
+                  <span className="compare-token-pill highlight">{analysisResult.tokensAfter} tokens</span>
+                </div>
+                <div className="compare-content-box optimized-box">
+                  <code>{analysisResult.optimizedPrompt}</code>
+                </div>
+              </div>
+            </div>
+
+            {/* Specific Changes Made */}
+            {analysisResult.changes && analysisResult.changes.length > 0 && (
+              <div className="opt-changes-summary">
+                <span className="changes-summary-title">Optimization Actions:</span>
+                <ul className="opt-changes-bullets">
+                  {analysisResult.changes.map((change, idx) => (
+                    <li key={idx}>• {change}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           {/* 3. Recommended Model */}
@@ -656,34 +720,69 @@ export default function AIWorkspace() {
 
             <div className="slop-signals-grid">
               <div className="signal-item">
-                <span className="signal-title">Repetition Risk</span>
-                <span className={`signal-val ${getRiskBadgeColor(analysisResult.slop?.repetitionRisk)}`}>
-                  {analysisResult.slop?.repetitionRisk?.toUpperCase() || 'LOW'}
-                </span>
+                <div className="signal-header">
+                  <span className="signal-title">Repetition Risk</span>
+                  <span className={`signal-val ${getRiskBadgeColor(analysisResult.slop?.repetitionRisk)}`}>
+                    {analysisResult.slop?.repetitionRisk?.toUpperCase() || 'LOW'}
+                  </span>
+                </div>
+                <p className="signal-desc">
+                  {analysisResult.slop?.repetitionRiskExplanation ||
+                    (analysisResult.slop?.repetitionRisk === 'high' || analysisResult.slop?.repetitionRisk === 'medium'
+                      ? 'Request asks for multiple similar variations.'
+                      : 'The prompt is specific enough to reduce repeated ideas.')}
+                </p>
               </div>
+
               <div className="signal-item">
-                <span className="signal-title">Output Bloat</span>
-                <span className={`signal-val ${getRiskBadgeColor(analysisResult.slop?.outputBloat)}`}>
-                  {analysisResult.slop?.outputBloat?.toUpperCase() || 'LOW'}
-                </span>
+                <div className="signal-header">
+                  <span className="signal-title">Output Bloat</span>
+                  <span className={`signal-val ${getRiskBadgeColor(analysisResult.slop?.outputBloat)}`}>
+                    {analysisResult.slop?.outputBloat?.toUpperCase() || 'LOW'}
+                  </span>
+                </div>
+                <p className="signal-desc">
+                  {analysisResult.slop?.outputBloatExplanation ||
+                    (analysisResult.slop?.outputBloat === 'high' || analysisResult.slop?.outputBloat === 'medium'
+                      ? 'Requests large volume of unconstrained text.'
+                      : 'The requested response has a clear scope.')}
+                </p>
               </div>
+
               <div className="signal-item">
-                <span className="signal-title">Regeneration Risk</span>
-                <span className={`signal-val ${getRiskBadgeColor(analysisResult.slop?.regenerationRisk)}`}>
-                  {analysisResult.slop?.regenerationRisk?.toUpperCase() || 'LOW'}
-                </span>
+                <div className="signal-header">
+                  <span className="signal-title">Regeneration Risk</span>
+                  <span className={`signal-val ${getRiskBadgeColor(analysisResult.slop?.regenerationRisk)}`}>
+                    {analysisResult.slop?.regenerationRisk?.toUpperCase() || 'LOW'}
+                  </span>
+                </div>
+                <p className="signal-desc">
+                  {analysisResult.slop?.regenerationRiskExplanation ||
+                    (analysisResult.slop?.regenerationRisk === 'high' || analysisResult.slop?.regenerationRisk === 'medium'
+                      ? 'The prompt leaves some room for interpretation.'
+                      : 'Clear context minimizes need for re-prompts.')}
+                </p>
               </div>
             </div>
 
             <div className="slop-text-block">
               <div className="text-group">
                 <span className="group-label">Reason</span>
-                <p>{analysisResult.slop?.reason || 'No specific risks detected.'}</p>
+                <p>{analysisResult.slop?.reason || "The request doesn't specify a target audience, format, or level of detail."}</p>
               </div>
               <div className="text-group">
                 <span className="group-label">Suggestion</span>
-                <p className="suggestion-text">{analysisResult.slop?.suggestion || 'No changes needed.'}</p>
+                <p className="suggestion-text">{analysisResult.slop?.suggestion || "Add a target audience, desired format, and specific requirements to make the output more focused."}</p>
               </div>
+            </div>
+
+            <div className="slop-action-row">
+              <button
+                className="btn-improve-risk"
+                onClick={handleImproveBeforeGenerating}
+              >
+                Improve before generating →
+              </button>
             </div>
           </div>
 
