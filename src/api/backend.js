@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://ecoroute-project-1.onrender.com/';
+const API_BASE_URL = 'https://ecoroute-project-1.onrender.com';
 /**
  * Send a prompt and optional parameters to the EcoRoute backend for analysis.
  *
