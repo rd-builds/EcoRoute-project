@@ -40,7 +40,7 @@ HF_MODEL    = os.getenv("HF_MODEL", "Qwen/Qwen2.5-7B-Instruct")
 HF_BASE_URL = "https://router.huggingface.co/v1"
 
 # Ollama (local dev fallback)
-OLLAMA_URL   = os.getenv("OLLAMA_URL",   "http://localhost:11434/api/generate")
+OLLAMA_URL   = os.getenv("OLLAMA_URL",   "https://ecoroute-project-1.onrender.com/")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:0.6b")
 
 # Regex to strip markdown code fences that some chat models wrap around JSON

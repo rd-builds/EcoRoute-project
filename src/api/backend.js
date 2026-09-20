@@ -1,5 +1,4 @@
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
-
+const API_BASE_URL = 'https://ecoroute-project-1.onrender.com/';
 /**
  * Send a prompt and optional parameters to the EcoRoute backend for analysis.
  *
