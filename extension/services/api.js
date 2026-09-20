@@ -1,5 +1,9 @@
 (function (global) {
+<<<<<<< HEAD
 var API_BASE = "https://ecoroute-project-1.onrender.com";
+=======
+  var API_BASE = "https://ecoroute-project-1.onrender.com";
+>>>>>>> 68b744d848a12876476dbc917206ab0788e71820
   var TIMEOUT_MS = 120000;
 
   function makeError(message, kind) {
