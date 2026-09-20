@@ -12,12 +12,7 @@ app = FastAPI(title="EcoRoute Backend")
 
 # Allow React/Vite frontend origins and Chrome Extension origins
 origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:5174",
-    "http://localhost:4173",
-    "http://127.0.0.1:4173",
+    "https://ecoroute-project-1.onrender.com/"
     "chrome-extension://ehpckjafpegpnphioaekomceopbmjhge",
 ]
 
