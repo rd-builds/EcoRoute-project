@@ -12,7 +12,8 @@ app = FastAPI(title="EcoRoute Backend")
 
 # Allow React/Vite frontend origins and Chrome Extension origins
 origins = [
-    "https://ecoroute-project-1.onrender.com"
+    "https://eco-route-project.vercel.app",
+    "https://ecoroute-project-1.onrender.com",
     "chrome-extension://ehpckjafpegpnphioaekomceopbmjhge",
 ]
 
