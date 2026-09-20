@@ -42,111 +42,174 @@ def sanitize_optimized_prompt(original_prompt: str, optimized_prompt: str) -> Tu
         if marker in lower_opt and marker not in lower_orig:
             return original_prompt, True
 
-    # Detect suspicious length expansion
-    if len(optimized_prompt) > max(len(original_prompt) * 3.5, len(original_prompt) + 250):
+    # Detect suspicious length expansion (unreasonably massive)
+    if len(optimized_prompt) > max(len(original_prompt) * 5.0, len(original_prompt) + 500):
         return original_prompt, True
 
     return optimized_prompt.strip(), False
 
 
+def clean_filler(text: str) -> str:
+    """Removes conversational filler, polite preambles, and low-value leading phrases."""
+    cleaned = text.strip()
+    filler_patterns = [
+        r'^(?:could|can|would|will)\s+you\s+(?:please\s+)?(?:kindly\s+)?(?:help\s+me\s+)?(?:to\s+)?',
+        r'^(?:please|kindly)\s+',
+        r'^(?:i\s+(?:was\s+wondering\s+if\s+you\s+could|would\s+like\s+you\s+to|want\s+you\s+to|need\s+you\s+to|am\s+asking\s+you\s+to|was\s+hoping\s+you\s+could))\s+',
+        r'^(?:tell\s+me\s+about|give\s+me\s+info(?:rmation)?\s+on|i\s+need\s+to\s+know\s+about|give\s+me\s+a\s+summary\s+of)\s+',
+        r'^(?:write|draft)\s+a?\s*(?:quick|short|simple)?\s*',
+    ]
+    for pattern in filler_patterns:
+        cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE).strip()
+    return cleaned if cleaned else text
+
+
 def optimize_prompt_intelligently(prompt: str, quality_score: float = 50.0, task_type: str = 'other') -> Tuple[str, List[str]]:
     """
-    Intelligently optimizes prompts:
-    - Vague/telegram prompts (e.g. 'write email dean') are expanded into well-structured,
-      actionable prompts with explicit placeholders for missing facts.
-    - Already specific and well-formed prompts are preserved with minimal polish.
-    - Verbose fluff and conversational filler are cleanly trimmed.
+    Intelligently optimizes prompts dynamically for any input:
+    - Removes conversational filler, preambles, and redundant phrasing.
+    - Adds explicit structural guidelines (sections, headings, bullet points).
+    - Specifies output formatting, context requirements, and actionable scope.
+    - Works dynamically across question/research, writing/communication, analysis, coding, and general tasks.
     """
     raw = prompt.strip()
+    if not raw:
+        return raw, []
+
     lower = raw.lower()
     changes = []
-    
-    # 1. If the prompt is already high quality (score >= 85), preserve intent and do light polish
-    if quality_score >= 85:
-        cleaned = re.sub(r'^(?:could|can|would)\s+you\s+(?:please\s+)?(?:kindly\s+)?(?:help\s+me\s+)?(?:to\s+)?', '', raw, flags=re.IGNORECASE).strip()
-        cleaned = re.sub(r'^(?:please|kindly)\s+', '', cleaned, flags=re.IGNORECASE).strip()
-        if cleaned and cleaned != raw:
-            changes.append('Removed conversational request prefix')
-            raw = cleaned[0].upper() + cleaned[1:] if cleaned else raw
-        return raw, changes
 
-    # 2. Clean conversational filler / politeness preamble
-    cleaned = re.sub(r'^(?:could|can|would)\s+you\s+(?:please\s+)?(?:kindly\s+)?(?:help\s+me\s+)?(?:to\s+)?', '', raw, flags=re.IGNORECASE).strip()
-    cleaned = re.sub(r'^(?:please|kindly)\s+', '', cleaned, flags=re.IGNORECASE).strip()
-    cleaned = re.sub(r'^(?:i\s+(?:was\s+wondering\s+if\s+you\s+could|would\s+like\s+you\s+to|want\s+you\s+to|need\s+you\s+to|am\s+asking\s+you\s+to))\s+', '', cleaned, flags=re.IGNORECASE).strip()
-    if cleaned != raw and cleaned:
-        changes.append('Removed conversational filler')
-        raw = cleaned
+    # 1. Clean conversational filler & polite preambles
+    cleaned = clean_filler(raw)
+    if cleaned != raw and len(cleaned) > 3:
+        changes.append("Removed conversational filler and polite preambles")
+        work_text = cleaned
+    else:
+        work_text = raw
 
-    words = [w for w in re.findall(r'\b\w+\b', raw)]
-    
-    # 3. If the prompt is vague / incomplete (quality_score < 75 and word count <= 8):
-    if quality_score < 75 and len(words) <= 8:
-        # A. Email / Communication archetype
-        if 'email' in lower or 'letter' in lower or 'dean' in lower or 'boss' in lower or 'professor' in lower or task_type == 'writing':
-            recipient = 'the dean' if 'dean' in lower else ('my professor' if 'professor' in lower else ('my manager' if 'boss' in lower else '[recipient]'))
-            topic_hint = 'an examination issue' if 'exam' in lower else ('a project update' if 'project' in lower else '[specific topic/issue, e.g. an exam network issue]')
-            optimized = f'Write a professional and concise email to {recipient} regarding {topic_hint}. Clearly explain the context, describe the issue and its impact, and politely request [desired action, e.g. reconsideration or next steps]. Maintain a respectful and formal tone.'
-            changes.append('Expanded vague request with professional email structure, context requirements, and action placeholders')
-            return optimized, changes
+    work_lower = work_text.lower()
 
-        # B. Explanation / Educational archetype
-        if task_type == 'education' or any(k in lower for k in ['explain', 'teach', 'what is', 'how does', 'java', 'python', 'recursion']):
-            topic = raw
-            topic = re.sub(r'^(?:explain|teach|what\s+is|tell\s+me\s+about)\s+', '', topic, flags=re.IGNORECASE).strip()
-            topic = topic if topic else '[topic]'
-            optimized = f'Explain {topic} clearly for [target audience, e.g. a beginner]. Break down the fundamental concepts step-by-step, provide a concise real-world or code example, and highlight key takeaways.'
-            changes.append('Added target audience scaffolding, step-by-step structure, and example requirements')
-            return optimized, changes
+    # Determine core subject/topic by stripping leading prepositional filler
+    topic = re.sub(r'^(?:about|on|regarding|for|the|a|an)\s+', '', work_text, flags=re.IGNORECASE).strip()
+    if not topic:
+        topic = work_text
 
-        # C. Coding / Implementation archetype
-        if task_type == 'coding' or any(k in lower for k in ['code', 'program', 'debug', 'function', 'algorithm', 'script', 'fix']):
-            if 'debug' in lower or 'fix' in lower or 'error' in lower:
-                optimized = f'Debug the following issue in [{raw}]: [paste relevant code and error trace]. Explain the root cause of the error, provide the corrected code snippet, and outline best practices to avoid it.'
-                changes.append('Structured debugging request with error trace placeholder and root-cause analysis')
-                return optimized, changes
-            else:
-                optimized = f'Implement a clean, robust solution for [{raw}] in [language]. Include modular code with comments, handle edge cases, and provide a brief explanation of time and space complexity.'
-                changes.append('Added implementation requirements, edge case handling, and complexity analysis')
-                return optimized, changes
+    # 2. Archetype / Task Intent Classification & Optimization
 
-        # D. General fallback
-        optimized = f'{raw.capitalize()}. Provide a structured, comprehensive response covering key points, relevant examples, and clear next steps.'
-        changes.append('Added structural clarity and output guidance')
+    # Archetype A: Email / Writing / Communication Requests
+    if task_type == 'writing' or any(k in work_lower for k in ['email', 'letter', 'memo', 'cover letter', 'essay', 'draft', 'rewrite', 'message to', 'manager', 'boss', 'professor', 'dean', 'pto', 'absence']):
+        recipient = '[Recipient]'
+        if 'manager' in work_lower or 'boss' in work_lower:
+            recipient = 'my manager'
+        elif 'professor' in work_lower:
+            recipient = 'my professor'
+        elif 'dean' in work_lower:
+            recipient = 'the dean'
+
+        subject_hint = work_text
+        subject_hint = re.sub(r'^(?:write|draft)\s+', '', subject_hint, flags=re.IGNORECASE).strip()
+        subject_hint = re.sub(r'^(?:an?\s+)?(?:email|letter|memo|note|message)\s+', '', subject_hint, flags=re.IGNORECASE).strip()
+        subject_hint = re.sub(r'^(?:to\s+)?(?:my\s+)?(?:manager|boss|professor|dean)\s+', '', subject_hint, flags=re.IGNORECASE).strip()
+        subject_hint = re.sub(r'^(?:about|regarding|asking\s+for|for)\s+', '', subject_hint, flags=re.IGNORECASE).strip()
+        if not subject_hint or len(subject_hint) < 2:
+            subject_hint = 'the requested topic'
+
+        optimized = (
+            f"Write a professional, concise email to {recipient} regarding {subject_hint}. "
+            "Structure the response with a clear subject line, a respectful opening, logical body paragraphs detailing the main points and context, "
+            "a polite call to action, and a formal sign-off. Use explicit placeholders like [Dates/Details] where specific information is required."
+        )
+        changes.append("Structured email request with professional tone, explicit placeholders, and section guidelines")
         return optimized, changes
 
-    # 4. For medium prompts, ensure proper capitalization and clean formatting
-    optimized = raw[0].upper() + raw[1:] if raw else raw
-    if not optimized.endswith(('.', '?', '!')):
-        optimized += '.'
+    # Archetype B: Educational / Explanatory / Topic Query (e.g. "tell me about climate change")
+    if task_type in ['education', 'summarization'] or any(k in work_lower for k in ['climate change', 'tell me about', 'explain', 'what is', 'how does', 'teach', 'overview', 'concept', 'history of', 'background of', 'understanding']):
+        clean_topic = re.sub(r'^(?:tell\s+me\s+about|explain|what\s+is|how\s+does|teach\s+me\s+about|give\s+me\s+an?\s+overview\s+of)\s+', '', work_text, flags=re.IGNORECASE).strip()
+        if not clean_topic:
+            clean_topic = topic
+
+        optimized = (
+            f"Explain {clean_topic} in clear, concise language. "
+            "Structure the response with headings covering: 1) Core Definition & Background, 2) Key Causes & Mechanisms, "
+            "3) Major Effects & Current Challenges, and 4) 5 Key Bulleted Takeaways. Suitable for a clear, comprehensive overview."
+        )
+        changes.append("Transformed vague topic query into structured explanation with clear headings and bulleted takeaways")
+        return optimized, changes
+
+    # Archetype C: Analysis / Research / Data Extraction Requests (e.g. "Analyze customer reviews")
+    if task_type == 'research' or any(k in work_lower for k in ['analyze', 'analysis', 'review', 'complaint', 'reviews', 'complaints', 'feedback', 'compare', 'evaluation', 'benchmark', 'themes', 'trends']):
+        target_subject = re.sub(r'^(?:analyze|evaluate|review|compare)\s+(?:these|the|this)?\s*', '', work_text, flags=re.IGNORECASE).strip()
+        target_subject = re.sub(r'\s+(?:and|to)\s+(?:identify|find|extract|discover).*$', '', target_subject, flags=re.IGNORECASE).strip()
+        if not target_subject:
+            target_subject = work_text
+
+        optimized = (
+            f"Analyze {target_subject} to identify recurring themes, core patterns, and actionable insights. "
+            "Structure the output into: 1) Executive Summary, 2) Key Categorized Findings with Frequency/Severity, "
+            "3) Representative Excerpts, and 4) Strategic Recommendations formatted with bullet points."
+        )
+        changes.append("Structured analysis request into executive summary, categorized findings, and strategic recommendations")
+        return optimized, changes
+
+    # Archetype D: Coding / Engineering Implementation
+    if task_type == 'coding' or any(k in work_lower for k in ['code', 'program', 'debug', 'function', 'class', 'algorithm', 'script', 'react', 'python', 'java', 'js', 'javascript', 'typescript', 'sql', 'hook', 'api']):
+        if any(k in work_lower for k in ['debug', 'fix', 'error', 'stacktrace', 'bug']):
+            optimized = (
+                f"Debug the following technical issue with {work_text}: [Paste code/stacktrace here]. "
+                "1) Identify the root cause, 2) Provide the corrected production-ready code snippet, and 3) List best practices to prevent similar errors."
+            )
+            changes.append("Structured debugging prompt with root-cause analysis, corrected code block, and best practices")
+        else:
+            optimized = (
+                f"Implement a clean, robust, production-ready solution for: {work_text}. "
+                "Include modular code with concise comments, proper error handling, edge case considerations, and a brief explanation of time and space complexity."
+            )
+            changes.append("Added production requirements, edge case handling, and complexity analysis")
+        return optimized, changes
+
+    # Archetype E: Brainstorming / Idea Generation
+    if task_type == 'brainstorming' or any(k in work_lower for k in ['brainstorm', 'ideas', 'suggestions', 'creative', 'names', 'strategies']):
+        optimized = (
+            f"Generate 5-10 distinct, highly creative, and actionable ideas for {work_text}. "
+            "For each idea, include: a catchy title, a 2-sentence concept summary, key benefits, and practical implementation steps."
+        )
+        changes.append("Structured brainstorming prompt into distinct ideas with summary, benefits, and execution steps")
+        return optimized, changes
+
+    # Archetype F: General Fallback for arbitrary prompts
+    optimized = (
+        f"{work_text[0].upper() + work_text[1:] if work_text else raw}. "
+        "Provide a clear, well-structured response with key headings, concise explanation, and bulleted takeaways."
+    )
+    changes.append("Added structural clarity, section headings, and bulleted output requirements")
     return optimized, changes
 
 
 async def query_ollama_optimizer(prompt: str, quality_score: float = 50.0, task_type: str = 'other') -> dict:
     prompt_template = (
-        "You are GreenMind's Prompt Optimizer. Refine the user prompt for maximum clarity, actionable structure, and specificity.\n\n"
-        "RULES:\n"
-        "1. If the user prompt is vague (e.g. 'write email dean'), expand it into a well-structured prompt with clear context and explicit placeholders (e.g. '[recipient]', '[details]') without fabricating unstated facts.\n"
-        "2. If the user prompt is already high quality and specific, preserve it with minimal polish.\n"
-        "3. Remove unnecessary politeness filler (e.g. 'could you please', 'I was wondering if').\n"
-        "4. Output ONLY the optimized prompt in 'optimizedPrompt'.\n\n"
-        "You MUST respond ONLY with a single valid raw JSON object matching:\n"
+        "You are GreenMind's Expert Prompt Optimizer. Your task is to refine the user's prompt into an optimized, highly effective LLM prompt.\n\n"
+        "OPTIMIZATION RULES:\n"
+        "1. Remove conversational filler and polite preambles (e.g. 'could you please', 'tell me about').\n"
+        "2. Add clear structural requirements (e.g. headings, bullet points, executive summary, sections).\n"
+        "3. Specify output style, target audience, context, and explicit placeholders like [Details] when needed.\n"
+        "4. Do NOT fabricate unstated facts. Preserve the user's core intent while maximizing prompt quality and clarity.\n\n"
+        "Respond ONLY with a single valid JSON object:\n"
         "{\n"
-        '  "optimizedPrompt": "the refined prompt text",\n'
-        '  "changes": ["short description of improvements made"]\n'
+        '  "optimizedPrompt": "the refined, highly structured prompt",\n'
+        '  "changes": ["description of improvement 1", "description of improvement 2"]\n'
         "}\n\n"
-        f"User Prompt: {prompt}"
+        f"User Prompt to Optimize: {prompt}"
     )
 
     try:
         raw_text = await query_llm(prompt_template)
         data = json.loads(raw_text)
-        if data.get("optimizedPrompt"):
+        if data.get("optimizedPrompt") and data.get("optimizedPrompt").strip() != prompt.strip():
             return data
     except Exception:
         pass
 
-    # Deterministic fallback optimizer
+    # Deterministic intelligent fallback optimizer
     opt_text, changes = optimize_prompt_intelligently(prompt, quality_score, task_type)
     return {
         "optimizedPrompt": opt_text,
@@ -169,10 +232,11 @@ async def optimize_prompt_endpoint(request: OptimizeRequest):
     if not isinstance(changes, list):
         changes = [str(changes)]
 
-    if was_leaked:
-        changes = []
+    if was_leaked or cleaned_prompt.strip() == original.strip():
+        cleaned_prompt, changes = optimize_prompt_intelligently(original, quality, task)
 
     return OptimizeResponse(
         optimizedPrompt=cleaned_prompt,
         changes=changes
     )
+

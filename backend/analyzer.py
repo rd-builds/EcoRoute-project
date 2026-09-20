@@ -130,6 +130,10 @@ async def analyze_prompt_endpoint(request: AnalyzeRequest):
         raise HTTPException(status_code=500, detail=f"Analysis pipeline error: {str(e)}")
 
     optimized_prompt = optimizer_res.get("optimizedPrompt", prompt)
+    if not optimized_prompt or optimized_prompt.strip() == prompt.strip():
+        from optimizer import optimize_prompt_intelligently
+        opt_text, _ = optimize_prompt_intelligently(prompt, quality_score, task_type)
+        optimized_prompt = opt_text
 
     # 3. Calculate token metrics
     token_stats = calculate_token_savings(prompt, optimized_prompt)

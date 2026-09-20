@@ -5,16 +5,6 @@
   var BUTTON_ID = "ecoroute-optimize-btn";
   var button = null;
 
-  function shouldApplyTextFallback(prompt, result) {
-    if (result && result.taskType === "coding") return false;
-    if (EcoRouteMetrics.sniffCode(prompt)) return false;
-    if (EcoRouteMetrics.estimateTokens(prompt) < 8) return false;
-    if (EcoRouteMetrics.meaningfulReduction(prompt, (result && result.optimizedPrompt) || "")) {
-      return false;
-    }
-    return true;
-  }
-
   function createButton() {
     var btn = document.createElement("button");
     btn.id = BUTTON_ID;
@@ -35,14 +25,19 @@
     return button;
   }
 
+  function getCapturedPrompt() {
+    var selection = (window.getSelection ? window.getSelection().toString() : "").trim();
+    if (selection.length > 0) {
+      return selection;
+    }
+    var input = ChatGPTAdapter.findPromptInput();
+    return (ChatGPTAdapter.getPrompt(input) || "").trim();
+  }
+
   function refreshButtonVisibility() {
     if (!button) return;
-    var input = ChatGPTAdapter.findPromptInput();
-    if (!input) {
-      button.classList.add("ecoroute-hidden");
-      return;
-    }
-    if (ChatGPTAdapter.hasPrompt(input)) {
+    var prompt = getCapturedPrompt();
+    if (prompt.length > 0) {
       button.classList.remove("ecoroute-hidden");
     } else {
       button.classList.add("ecoroute-hidden");
@@ -66,83 +61,14 @@
     refreshButtonVisibility();
   }
 
-  function shouldApplyTextFallback(prompt, result) {
-    if (result && result.taskType === "coding") return false;
-    if (sniffCode(prompt)) return false;
-    if (EcoRouteMetrics.estimateTokens(prompt) < 8) return false;
-    if (EcoRouteMetrics.meaningfulReduction(prompt, (result && result.optimizedPrompt) || "")) {
-      return false;
-    }
-    return true;
-  }
-
-  function buildScoreRequest(tokens, result, tier) {
-    var slop = (result && result.slop) || {};
-    return {
-      tokenReductionPercentage: tokens.tokenReductionPercentage,
-      modelTier: tier,
-      complexity: (result && result.complexity) || "medium",
-      slopRisk: slop.risk,
-      repetitionRisk: slop.repetitionRisk,
-      outputBloat: slop.outputBloat,
-      regenerationRisk: slop.regenerationRisk
-    };
-  }
-
-  function buildImpactRequest(tokens, result, tier) {
-    var slop = (result && result.slop) || {};
-    return {
-      modelTier: tier,
-      complexity: (result && result.complexity) || "medium",
-      estimatedTokens: tokens.tokensAfter,
-      outputBloat: slop.outputBloat,
-      repetitionRisk: slop.repetitionRisk
-    };
-  }
-
-  async function applyTextFallback(prompt, result) {
-    var optimized = EcoRouteTextOptimizer.optimizeText(prompt);
-    if (!optimized.changed || !optimized.text) return result;
-    if (optimized.text === ((result && result.optimizedPrompt) || "")) return result;
-    if (!EcoRouteMetrics.meaningfulReduction(prompt, optimized.text)) return result;
-
-    var tier = EcoRouteMetrics.resolveTier(result && result.recommendedModel);
-    try {
-      var tokens = await EcoRouteApi.callBackend("token-count", {
-        originalPrompt: prompt,
-        optimizedPrompt: optimized.text
-      });
-      if (!tokens || !tokens.tokenReduction || tokens.tokenReduction <= 0) return result;
-
-      var score = await EcoRouteApi.callBackend("score", buildScoreRequest(tokens, result, tier));
-      var impact = await EcoRouteApi.callBackend("impact", buildImpactRequest(tokens, result, tier));
-
-      return Object.assign({}, result, {
-        optimizedPrompt: optimized.text,
-        tokensBefore: tokens.tokensBefore,
-        tokensAfter: tokens.tokensAfter,
-        tokenReduction: tokens.tokenReduction,
-        tokenReductionPercentage: tokens.tokenReductionPercentage,
-        greenScore: score ? score.greenScore : result.greenScore,
-        impact: impact || result.impact
-      });
-    } catch (err) {
-      return result;
-    }
-  }
-
   async function onOptimizeClick() {
-    var input = ChatGPTAdapter.findPromptInput();
-    var prompt = ChatGPTAdapter.getPrompt(input);
-    if (!prompt.trim()) return;
+    var prompt = getCapturedPrompt();
+    if (!prompt) return;
 
     EcoRoutePanel.open();
     EcoRoutePanel.setLoading();
     try {
       var result = await EcoRouteApi.callBackend("analyze", { prompt: prompt });
-      if (shouldApplyTextFallback(prompt, result)) {
-        result = await applyTextFallback(prompt, result);
-      }
       EcoRoutePanel.render(result, prompt);
     } catch (err) {
       EcoRoutePanel.renderError(err && err.message ? err.message : "Analysis failed.", {
@@ -186,4 +112,4 @@
   } else {
     init();
   }
-})();
+})();

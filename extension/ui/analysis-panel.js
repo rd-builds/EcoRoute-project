@@ -234,7 +234,8 @@ function fmtPct(v) {
     var meta = h("div", "ecoroute-meta");
     meta.appendChild(metaRow("Content type", r.taskType));
     meta.appendChild(metaRow("Complexity", r.complexity));
-    meta.appendChild(metaRow("AI necessity", r.aiNecessity));
+    var necessityVal = r.aiNecessity && typeof r.aiNecessity === "object" ? r.aiNecessity.status : r.aiNecessity;
+    meta.appendChild(metaRow("AI necessity", necessityVal));
     meta.appendChild(metaRow("Recommended model", r.recommendedModel));
 
     scoreCard.appendChild(scoreBox);
