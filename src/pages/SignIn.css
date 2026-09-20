@@ -31,12 +31,14 @@
 }
 
 .signin-card {
-  background: rgba(10, 13, 6, 0.9);
-  border: 1px solid var(--line);
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
   padding: 40px 36px;
   position: relative;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(12px);
 }
 
 .signin-card::after {

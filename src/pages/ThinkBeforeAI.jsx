@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import EcoRouteAtmosphere from '../components/EcoRouteAtmosphere';
 import './ThinkBeforeAI.css';
 
 export default function ThinkBeforeAI() {
@@ -79,6 +80,7 @@ export default function ThinkBeforeAI() {
 
   return (
     <div className="tb-glass-page">
+      <EcoRouteAtmosphere variant="full" />
       {/* Ambient Lighting Background */}
       <div className="tb-ambient-bg">
         <div className="tb-blob tb-blob-1"></div>

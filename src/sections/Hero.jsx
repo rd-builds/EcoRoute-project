@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom';
 import LLMCarousel from './LLMCarousel';
+import EcoRouteAtmosphere from '../components/EcoRouteAtmosphere';
 
 export default function Hero() {
   return (
     <section className="hero">
+      <EcoRouteAtmosphere variant="hero" />
       <LLMCarousel />
 
       <div className="hero-copy">

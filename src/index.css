@@ -1,14 +1,23 @@
 :root {
-  --bg: #040502;
-  --bg2: #0a0d06;
-  --ink: #f3f6ec;
-  --dim: #7d8873;
-  --dim2: #4c5546;
-  --lime: #c8ff4d;
-  --lime-dim: #87ab35;
-  --line: rgba(243, 246, 236, 0.1);
-  --line-bright: rgba(82, 186, 106, 0.45);
-  --header-height: 96px;
+  --bg: #020704;
+  --bg2: #030a06;
+  --surface: #04100a;
+  --surface-hover: #06140c;
+  --emerald-shadow: #07180e;
+  --ink: #f2f5ef;
+  --dim: #8c9688;
+  --dim2: #596257;
+  --lime: #b8ff32;
+  --lime-bright: #c6ff3d;
+  --emerald: #20c978;
+  --emerald-dark: #0fa968;
+  --teal: #063c2d;
+  --line: rgba(184, 255, 50, 0.08);
+  --line-bright: rgba(184, 255, 50, 0.22);
+  --glass-bg: rgba(4, 16, 10, 0.65);
+  --glass-border: rgba(184, 255, 50, 0.08);
+  --glass-glow: rgba(32, 201, 120, 0.05);
+  --header-height: 80px;
 }
 
 * {
@@ -39,7 +48,7 @@ body::before {
   inset: 0;
   z-index: 1000;
   pointer-events: none;
-  opacity: 0.05;
+  opacity: 0.03;
   mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
@@ -50,7 +59,10 @@ body::after {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: radial-gradient(ellipse 1000px 600px at 50% -10%, rgba(200, 255, 77, 0.06), transparent 60%);
+  background: 
+    radial-gradient(circle at 50% -5%, rgba(184, 255, 50, 0.05), transparent 50%),
+    radial-gradient(circle at 85% 25%, rgba(32, 201, 120, 0.04), transparent 45%),
+    radial-gradient(circle at 15% 75%, rgba(6, 60, 45, 0.06), transparent 50%);
 }
 
 #loader {
@@ -151,13 +163,18 @@ body.loading {
 }
 
 header {
-  position: fixed;
+  position: sticky;
   top: 0;
   left: 0;
   right: 0;
   z-index: 1000;
-  padding: 26px 48px;
-  background: var(--bg);
+  padding: 18px 48px;
+  background: rgba(3, 7, 4, 0.70);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(180, 255, 50, 0.08);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 nav {
@@ -741,16 +758,15 @@ footer {
 
 .main-content {
   position: relative;
-  padding-top: var(--header-height);
   min-height: calc(100vh - var(--header-height));
   z-index: 1;
 }
 
 @media (max-width: 860px) {
   :root {
-    --header-height: 84px;
+    --header-height: 72px;
   }
-  header { padding: 20px 24px; }
+  header { padding: 16px 24px; }
   .nav-links { display: none; }
   .trust { padding: 50px 24px 70px; }
   footer { padding: 20px 24px; }
@@ -766,7 +782,7 @@ footer {
 .workspace-container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 130px 24px 90px;
+  padding: 40px 24px 90px;
   position: relative;
   z-index: 2;
 }
@@ -814,34 +830,39 @@ footer {
 
 /* Cards Base */
 .workspace-card {
-  background: var(--bg2);
-  border: 1px solid var(--line);
-  padding: 28px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 32px;
   position: relative;
   overflow: hidden;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
 }
 
 .workspace-card:hover {
-  border-color: rgba(200, 255, 77, 0.25);
-  box-shadow: 0 0 24px rgba(200, 255, 77, 0.04);
+  border-color: rgba(184, 255, 50, 0.3);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 30px rgba(53, 216, 120, 0.08);
 }
 
 .prompt-card {
   margin-bottom: 40px;
-  border-color: rgba(200, 255, 77, 0.3);
-  box-shadow: 0 0 30px rgba(200, 255, 77, 0.05);
+  border-color: rgba(184, 255, 50, 0.25);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6), 0 0 30px rgba(184, 255, 50, 0.06);
 }
 
 .prompt-textarea {
   width: 100%;
-  background: rgba(4, 5, 2, 0.6);
-  border: 1px solid var(--line);
+  background: rgba(5, 8, 5, 0.7);
+  border: 1px solid rgba(184, 255, 50, 0.15);
+  border-radius: 12px;
   color: var(--ink);
   font-family: 'Space Grotesk', sans-serif;
   font-size: 16px;
   line-height: 1.6;
-  padding: 18px 20px;
+  padding: 20px 22px;
   resize: vertical;
   outline: none;
   transition: border-color 0.25s ease, box-shadow 0.25s ease;
@@ -850,7 +871,7 @@ footer {
 
 .prompt-textarea:focus {
   border-color: var(--lime);
-  box-shadow: 0 0 15px rgba(200, 255, 77, 0.12);
+  box-shadow: 0 0 20px rgba(184, 255, 50, 0.18), inset 0 0 10px rgba(184, 255, 50, 0.05);
 }
 
 .prompt-controls {
@@ -882,26 +903,40 @@ footer {
 }
 
 .workspace-select {
-  background: #060804;
+  background: rgba(8, 12, 8, 0.85);
   color: var(--ink);
-  border: 1px solid var(--line);
-  padding: 10px 16px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 12px 18px;
   font-family: 'Space Grotesk', sans-serif;
   font-size: 14px;
   outline: none;
   cursor: pointer;
-  min-width: 160px;
-  transition: border-color 0.2s ease;
+  min-width: 165px;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
 .workspace-select:focus, .workspace-select:hover {
   border-color: var(--lime);
+  box-shadow: 0 0 14px rgba(184, 255, 50, 0.15);
 }
 
 .btn-analyze {
   cursor: pointer;
   border: none;
+  border-radius: 10px;
   font-family: 'Space Grotesk', sans-serif;
+  background: linear-gradient(135deg, var(--lime) 0%, #a4f020 100%);
+  color: #030604;
+  font-weight: 700;
+  box-shadow: 0 0 20px rgba(184, 255, 50, 0.35);
+  transition: all 0.3s ease;
+}
+
+.btn-analyze:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--lime-bright) 0%, var(--lime) 100%);
+  box-shadow: 0 0 30px rgba(184, 255, 50, 0.55), 0 4px 16px rgba(0, 0, 0, 0.4);
+  transform: translateY(-2px);
 }
 
 .spinner {
@@ -2108,6 +2143,99 @@ footer {
   .voice-interp-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ==========================================================================
+   ECOROUTE ATMOSPHERE BACKGROUND SYSTEM (SVG WAVES & ORBS)
+   ========================================================================== */
+
+.ecoroute-atmosphere {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.atmosphere-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.atmosphere-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(140px);
+  pointer-events: none;
+  opacity: 0.18;
+}
+
+.orb-primary {
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, var(--lime) 0%, var(--emerald) 50%, transparent 80%);
+  top: -150px;
+  right: -100px;
+  animation: floatOrbSlow 32s ease-in-out infinite alternate;
+}
+
+.orb-secondary {
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, var(--emerald) 0%, var(--teal) 60%, transparent 80%);
+  bottom: 5%;
+  left: -150px;
+  animation: floatOrbSlow 38s ease-in-out infinite alternate-reverse;
+}
+
+.orb-tertiary {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, var(--lime-bright) 0%, transparent 70%);
+  top: 45%;
+  right: 15%;
+  opacity: 0.08;
+  animation: pulseGlowSlow 24s ease-in-out infinite alternate;
+}
+
+/* Atmospheric Wave Animations */
+.anim-wave-float {
+  animation: waveFloat 28s ease-in-out infinite alternate;
+}
+
+.anim-wave-pulse {
+  animation: wavePulse 22s ease-in-out infinite alternate;
+}
+
+@keyframes floatOrbSlow {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(40px, -50px, 0) scale(1.08); }
+  100% { transform: translate3d(-30px, 30px, 0) scale(0.95); }
+}
+
+@keyframes pulseGlowSlow {
+  0% { opacity: 0.05; transform: scale(0.92); }
+  50% { opacity: 0.14; transform: scale(1.1); }
+  100% { opacity: 0.05; transform: scale(0.92); }
+}
+
+@keyframes waveFloat {
+  0% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-18px) rotate(1.2deg); }
+  100% { transform: translateY(12px) rotate(-0.8deg); }
+}
+
+@keyframes wavePulse {
+  0% { opacity: 0.4; stroke-width: 1px; }
+  50% { opacity: 0.85; stroke-width: 1.6px; }
+  100% { opacity: 0.4; stroke-width: 1px; }
 }
 
 

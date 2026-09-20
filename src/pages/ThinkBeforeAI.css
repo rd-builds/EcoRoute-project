@@ -2,8 +2,8 @@
 
 .tb-glass-page {
   min-height: 100vh;
-  background: #040502;
-  color: #f3f6ec;
+  background: var(--bg);
+  color: var(--ink);
   position: relative;
   padding-top: var(--header-height);
   overflow-x: hidden;
@@ -23,7 +23,7 @@
   position: absolute;
   border-radius: 50%;
   filter: blur(120px);
-  opacity: 0.05;
+  opacity: 0.06;
   animation: floatBlob 22s ease-in-out infinite alternate;
 }
 
@@ -38,7 +38,7 @@
 .tb-blob-2 {
   width: 600px;
   height: 600px;
-  background: #64c8ff;
+  background: var(--emerald);
   top: 35%;
   right: -100px;
   animation-delay: -6s;
@@ -47,7 +47,7 @@
 .tb-blob-3 {
   width: 550px;
   height: 550px;
-  background: #c8ff4d;
+  background: var(--teal);
   bottom: 10%;
   left: -150px;
   animation-delay: -12s;
@@ -69,27 +69,27 @@
 
 /* Base Panel Spec — Crisp Architectural Glass Panel */
 .glass-panel {
-  background: rgba(10, 14, 8, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(243, 246, 236, 0.1);
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
-  transition: border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .glass-panel:hover {
-  border-color: rgba(200, 255, 77, 0.3);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45), 0 0 20px rgba(200, 255, 77, 0.06);
+  border-color: rgba(184, 255, 50, 0.3);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 25px rgba(53, 216, 120, 0.08);
 }
 
 .dark-glass-panel {
-  background: rgba(6, 8, 4, 0.85);
+  background: rgba(8, 12, 8, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(200, 255, 77, 0.25);
-  border-radius: 10px;
-  box-shadow: 0 8px 35px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(184, 255, 50, 0.22);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
 }
 
 /* Section Wrapper & Typography */
